@@ -1,10 +1,12 @@
 FROM mcr.microsoft.com/playwright/python:v1.41.0-jammy
 
-# 1. 先安装 tzdata (关键修复步骤)
-# 必须先更新源并安装 tzdata，否则 /usr/share/zoneinfo 目录可能不存在
-RUN apt-get update && apt-get install -y tzdata && rm -rf /var/lib/apt/lists/*
+# 1. 关键修改：加上 DEBIAN_FRONTEND=noninteractive
+# 这会让 apt-get 知道它是非交互模式，自动使用默认值，不再弹窗询问
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata && \
+    rm -rf /var/lib/apt/lists/*
 
-# 2. 然后再设置时区
+# 2. 设置时区 (这一步会覆盖掉默认配置，所以不用担心刚才没选对)
 ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 

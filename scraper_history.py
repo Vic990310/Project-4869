@@ -154,58 +154,90 @@ async def scrape():
             logger.warning("Could not discover row selector automatically. Falling back to 'div.item, tr'.")
             row_selector = "div.item, tr" # Fallback
 
-        # --- Bulk Extraction (JS Execution) ---
-        logger.info(f"Starting Bulk Extraction using selector: {row_selector}...")
+        # --- Bulk Extraction (JS Execution) --- 
+        logger.info(f"Starting Bulk Extraction using selector: {row_selector}..." ) 
         
-        extracted_data = await page.evaluate(f'''
-            () => {{
-                const rows = document.querySelectorAll("{row_selector}");
-                const results = [];
+        extracted_data = await page.evaluate( f''' 
+            () => {{ 
+                const rows = document.querySelectorAll("{row_selector} "); 
+                const results = []; 
                 
-                rows.forEach(row => {{
-                    // Extract Row Text (Title context)
-                    const fullText = row.innerText || "";
+                rows.forEach(row => {{ 
+                    // Extract Row Text (Title context) 
+                    const fullText = row.innerText || ""; 
                     
-                    const resources = [];
-                    const inputs = row.querySelectorAll("input.reslink");
+                    const resources = []; 
+                    const inputs = row.querySelectorAll("input.reslink"); 
                     
-                    inputs.forEach(input => {{
-                        const magnet = input.value;
-                        if (!magnet || !magnet.startsWith("magnet:")) return;
+                    inputs.forEach(input => {{ 
+                        const magnet = input.value; 
+                        if (!magnet || !magnet.startsWith("magnet:")) return; 
                         
-                        let context = "";
+                        let context = ""; 
                         
-                        // Strategy 1: Immediate parent text
-                        if (input.parentElement && input.parentElement.innerText && input.parentElement.innerText.trim().length < 50) {{
-                            context = input.parentElement.innerText.trim();
-                        }}
+                        // 修正策略：从 input 往上找，只找最近的父级容器里的 label 
+                        let current = input.parentElement; 
+                        let html_snapshot = ""; // To debug
+                        let source_type = ""; // 来源类型 (如 WEBRIP)
                         
-                        // Strategy 2: Label in closest modal-body or container
-                        if (!context) {{
-                            const modalBody = input.closest(".modal-body") || input.parentElement.parentElement;
-                            if (modalBody) {{
-                                const label = modalBody.querySelector("label.resb");
-                                if (label) context = label.innerText.trim();
+                        // 1. 查找字幕/分辨率标签 (label.resb)
+                        // 往上找最多 3 层
+                        for (let i = 0; i < 3; i++) {{ 
+                            if (!current || current.classList.contains("modal-body")) break;
+                            
+                            // Debug: Capture HTML of the parent to see what we are looking at
+                            if (i == 1) html_snapshot = current.outerHTML;
+
+                            const label = current.querySelector("label.resb"); 
+                            if (label) {{ 
+                                context = label.innerText.trim(); 
+                                break; 
+                            }} 
+                            current = current.parentElement; 
+                        }} 
+                        
+                        // 2. 查找来源类型 (Source Type)
+                        // 逻辑：向上找到 .modal 容器 -> 获取 ID -> 查找 data-target="#ID" 的触发按钮
+                        const modal = input.closest(".modal");
+                        if (modal && modal.id) {{
+                            // 查找触发该模态框的按钮
+                            // 通常在同一行的 .btn-group 或类似结构中
+                            // 我们在整个文档中搜索，或者在当前 item 范围内搜索
+                            // 由于 ID 是唯一的，直接用 document.querySelector 最稳
+                            const triggerBtn = document.querySelector(`[data-target="#${{modal.id}}"]`);
+                            if (triggerBtn) {{
+                                source_type = triggerBtn.innerText.trim();
                             }}
                         }}
+
+                        // 如果上面没找到 label，再用旧策略（兜底） 
+                        if (!context) {{ 
+                            const modalBody = input.closest(".modal-body"); 
+                            if (modalBody) {{ 
+                                const labels = modalBody.querySelectorAll("label.resb"); 
+                                if (labels.length === 1) context = labels[0].innerText.trim(); 
+                            }} 
+                        }} 
                         
-                        resources.push({{
-                            magnet: magnet,
-                            context: context
-                        }});
-                    }});
+                        resources.push({{ 
+                            magnet: magnet, 
+                            context: context,
+                            source_type: source_type,
+                            html_snapshot: html_snapshot
+                        }}); 
+                    }}); 
                     
-                    if (resources.length > 0) {{
-                        results.push({{
-                            row_text: fullText,
-                            resources: resources
-                        }});
-                    }}
-                }});
+                    if (resources.length > 0) {{ 
+                        results.push({{ 
+                            row_text: fullText, 
+                            resources: resources 
+                        }}); 
+                    }} 
+                }}); 
                 
-                return results;
-            }}
-        ''')
+                return results; 
+            }} 
+        ''' )
         
         logger.info(f"Bulk extraction finished. Processing {len(extracted_data)} rows in Python...")
         
@@ -216,61 +248,122 @@ async def scrape():
             
             if not row_text: continue
             
-            # Clean text lines
+            # 清洗行文本
             lines = [l.strip() for l in row_text.split('\n') if l.strip()]
             if not lines: continue
             
-            # Assume first line is title or contains episode ID
-            episode_title = lines[0]
+            # 原始父级信息 (包含标题和可能的 WEBRIP 标签)
+            raw_parent_line = lines[0]
             
-            # Try to extract Episode ID
-            ep_match = re.search(r'(?:^|\s)(?:\d{3,4}|M\d+|Movie\s*\d+)', episode_title)
-            if not ep_match and len(lines) > 1:
-                 # Try second line if first line is empty or just a date
-                 episode_title = lines[1]
-            
+            # --- 1. 提取纯净标题 (去除集数、日期、标签) ---
+            # 先去掉开头的集数
+            clean_ep_title = re.sub(r'^(?:\d+|M\d+|Movie\s*\d+|第\d+[集话])\s*', '', raw_parent_line).strip()
+            # 去掉日期
+            clean_ep_title = re.sub(r'\d{4}-\d{2}-\d{2}', '', clean_ep_title).strip()
+            # 去掉常见的标签 (防止标题里混入 WEBRIP)
+            clean_ep_title = re.sub(r'\s*(WEBRIP|HDTV|BDRIP|DVDISO)\s*', '', clean_ep_title, flags=re.IGNORECASE).strip()
+            # ---------------------------
+
+            # --- 2. 预先从父级标题提取 Source Type ---
+            # (已移除：用户指出 source_type 仅存在于点击的资源标签中，不存在于父级标题)
+            # ---------------------------
+
             for res in resources:
                 magnet_link = res['magnet']
                 res_context = res['context'] or "Unknown"
                 
-                # Combine Data
-                full_raw_title = f"{episode_title} - {res_context}"
+                # 获取 JS 提取的 source_type (WEBRIP等)
+                extracted_source_type = res.get('source_type', '')
+
+                # 组合完整标题 (仅用于解析集数等通用信息)
+                full_raw_title = f"{raw_parent_line} - {res_context}"
                 
-                # Parse
+                # 解析元数据
                 parsed = parse_title(full_raw_title)
                 episode = parsed.get('episode')
                 resolution = parsed.get('resolution')
-                source_type = parsed.get('source_type')
+                subtitle = parsed.get('subtitle')
                 
+                # 容器格式处理
+                container = parsed.get('container')
+                if not container:
+                    container = "MKV" if "MKV" in res_context.upper() else "MP4"
+
+                # --- 3. 源码类型提取 ---
+                # 优先使用从模态框触发按钮提取的 source_type (WEBRIP)
+                # 如果没有提取到，回退到 res_context (label 内容)
+                if extracted_source_type:
+                    source_type = extracted_source_type
+                else:
+                    source_type = res_context
+                # ---------------------------------
+
+                # --- 4. 字幕语言提取 (直接提取原始中文，不进行转换) ---
+                # 用户指令：抓的时候去抓磁力就近的简繁日 繁日 简日 这些
+                # 覆盖 utils.parser 的结果
+                subtitle = None
+                # 匹配常见的字幕标记
+                sub_match = re.search(r'(简繁日|简日|繁日|简繁|日文|内嵌|Chs|Cht|Big5|Jp)', res_context, re.IGNORECASE)
+                if sub_match:
+                    subtitle = sub_match.group(0) # 保留原始字符串 (e.g. "简日")
+                else:
+                    # 如果 res_context 里没找到，再回退到 parser 的结果 (但 parser 会转成 CHS_JP，可能需要处理)
+                    # 用户说 "CHT_JP CHT_JP 不可读"，所以尽量不要用 parser 的 output 如果它转码了
+                    # 这里如果没找到，就让它为空，或者保留 parser 的结果但要注意
+                    if parsed.get('subtitle'):
+                         # 如果 parser 找到了但我们没找到，可能是 regex 不全
+                         # 但 parser 会归一化，我们先暂时保留 parser 的结果作为最后的 fallback
+                         # 或者干脆只信赖 regex
+                         pass
+                
+                # 如果 regex 没找到，且 parser 找到了，尝试反向映射回中文? 
+                # 不，简单点，直接用 regex 抓到的。如果没有抓到，subtitle 就是 None。
+                # 这样能保证数据是用户想要的 "简日" 等原始格式。
+                # ---------------------------------
+
+                # 分辨率兜底
+
+                # 分辨率兜底
                 if not resolution and "1080" in res_context: resolution = "1080P"
                 if not resolution and "720" in res_context: resolution = "720P"
-                
-                pub_date = datetime.now().strftime("%Y-%m-%d")
 
-                # Insert
+                # 提取发布日期
+                pub_date = datetime.now().strftime("%Y-%m-%d")
+                if len(lines) > 1 and re.search(r'\d{4}-\d{2}-\d{2}', lines[1]):
+                    pub_date = lines[1].strip()
+
+                # 插入数据库
                 cursor.execute('''
-                    INSERT OR IGNORE INTO magnets (magnet_link, episode, resolution, container, subtitle, source_type, raw_title, publish_date)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO magnets
+                    (magnet_link, episode, episode_title, resolution, container, subtitle, source_type, raw_title, publish_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     magnet_link,
                     episode,
+                    clean_ep_title,
                     resolution,
-                    "MKV" if "MKV" in full_raw_title.upper() else "MP4",
-                    "Unknown",
+                    container,
+                    subtitle,
                     source_type,
                     full_raw_title,
                     pub_date
                 ))
+                
                 if cursor.rowcount > 0:
                     count += 1
                     # Print FIRST item detail as requested
                     if count == 1:
                         logger.info(f"SUCCESS! First Item Extracted:")
-                        logger.info(f"  Parent Title: {episode_title}")
+                        logger.info(f"  Parent Title: {raw_parent_line}")
+                        logger.info(f"  Clean Title: {clean_ep_title}")
                         logger.info(f"  Resource Context: {res_context}")
                         logger.info(f"  Combined Raw Title: {full_raw_title}")
                         logger.info(f"  Magnet: {magnet_link[:50]}...")
                         logger.info(f"  Parsed Episode: {episode}")
+                        logger.info(f"  Source Type: {source_type}")
+                        # Log the HTML snapshot to see the structure
+                        html_snapshot = res.get('html_snapshot', 'No Snapshot')
+                        logger.info(f"  HTML Structure: {html_snapshot[:500]}...")
 
                     if count % 100 == 0:
                         conn.commit()

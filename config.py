@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS magnets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     magnet_link TEXT UNIQUE,
     episode TEXT,
+    episode_title TEXT,
     resolution TEXT,
     container TEXT,
     subtitle TEXT,

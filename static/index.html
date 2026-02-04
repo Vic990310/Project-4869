@@ -1,29 +1,73 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project-4869: Detective Conan Manager</title>
+    <title>Project-4869: 名侦探柯南资源管理</title>
     
-    <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     
-    <!-- Element Plus -->
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
     <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/locale/zh-cn.min.js"></script>
     
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
 
-    <!-- Icons -->
     <script src="https://unpkg.com/@element-plus/icons-vue"></script>
 
     <style>
+        /* --- CSS 变量定义主题 --- */
+        :root {
+            /* 亮色模式默认值 */
+            --bg-image: url('/static/bg-light.jpg');
+            --bg-position: left center;
+            --bg-overlay: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.2) 100%);
+            --glass-bg: rgba(255, 255, 255, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.6);
+            
+            --text-primary: #1f2937;   /* gray-800 */
+            --text-secondary: #6b7280; /* gray-500 */
+            --text-blue: #1e40af;      /* blue-800 */
+            
+            --card-bg: #ffffff;
+            --card-border: #f3f4f6;    /* gray-100 */
+            --header-bg: rgba(255, 255, 255, 0.9);
+            
+            --tag-info-bg: #f4f4f5;
+            --tag-info-text: #909399;
+        }
+
+        /* 暗色模式重写 */
+        html[data-theme="dark"] {
+            --bg-image: url('/static/bg-dark.jpg');
+            --bg-position: right center;
+            /* 暗色模式叠加一层深色渐变，让文字更清晰 */
+            --bg-overlay: linear-gradient(135deg, rgba(17, 24, 39, 0.7) 0%, rgba(17, 24, 39, 0.5) 100%);
+            /* 深色毛玻璃 */
+            --glass-bg: rgba(17, 24, 39, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            
+            --text-primary: #f9fafb;   /* gray-50 */
+            --text-secondary: #9ca3af; /* gray-400 */
+            --text-blue: #60a5fa;      /* blue-400 */
+            
+            --card-bg: #1f2937;        /* gray-800 */
+            --card-border: #374151;    /* gray-700 */
+            --header-bg: rgba(17, 24, 39, 0.9);
+
+            --tag-info-bg: #374151;
+            --tag-info-text: #d1d5db;
+        }
+
         body {
             margin: 0;
-            font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
-            overflow-x: hidden;
+            font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background-color: var(--glass-bg);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
         }
         .bg-wallpaper {
             position: fixed;
@@ -31,31 +75,76 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-image: url('https://images6.alphacoders.com/606/606263.jpg'); /* Detective Conan Wallpaper */
+            background-image: var(--bg-overlay), var(--bg-image);
             background-size: cover;
-            background-position: center;
+            background-position: var(--bg-position);
             z-index: -1;
+            transition: background-image 0.3s, background-position 0.3s;
         }
         .glass-container {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            background: var(--glass-bg);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             min-height: 100vh;
+            border-right: 1px solid var(--glass-border);
+            border-left: 1px solid var(--glass-border);
         }
-        .episode-card {
-            transition: all 0.3s ease;
+        /* 头部导航 */
+        .top-nav {
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--glass-border);
         }
-        .episode-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        /* 统计卡片 */
+        .stats-card {
+            background-color: var(--header-bg);
+            border: 1px solid var(--glass-border);
         }
-        .missing-card {
-            border: 2px dashed #dcdfe6;
-            color: #909399;
-            display: flex;
-            align-items: center;
+        /* 资源卡片 */
+        .resource-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+        }
+        .resource-card-header {
+            background-color: var(--card-border); /* 稍微深一点的头部背景 */
+            border-bottom: 1px solid var(--card-border);
+        }
+        .resource-row {
+            transition: all 0.2s;
+            border-color: var(--card-border);
+        }
+        .resource-row:hover {
+            /* 暗色模式下的悬停高亮需要特殊处理 */
+            background-color: rgba(59, 130, 246, 0.1); /* blue-500 with opacity */
+        }
+        /* 分页器样式优化 */
+        .el-pagination {
             justify-content: center;
-            min-height: 120px;
+            margin-top: 2rem;
+            padding: 1rem;
+            background: var(--header-bg);
+            border-radius: 1rem;
+            backdrop-filter: blur(5px);
+            border: 1px solid var(--glass-border);
+        }
+        /* 暗色模式下 Element Plus 的一些微调 */
+        html[data-theme="dark"] .el-tag--info {
+            --el-tag-bg-color: var(--tag-info-bg);
+            --el-tag-border-color: var(--card-border);
+            --el-tag-text-color: var(--tag-info-text);
+        }
+        html[data-theme="dark"] .el-radio-button__inner {
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            border-color: var(--card-border);
+        }
+        html[data-theme="dark"] .el-radio-button:first-child .el-radio-button__inner {
+            border-left-color: var(--card-border);
+        }
+        html[data-theme="dark"] .el-drawer {
+            background: var(--card-bg) !important;
+        }
+        html[data-theme="dark"] .el-drawer__title {
+            color: var(--text-primary) !important;
         }
     </style>
 </head>
@@ -63,102 +152,138 @@
     <div id="app">
         <div class="bg-wallpaper"></div>
         <div class="glass-container flex flex-col">
-            <!-- Top Bar -->
-            <div class="bg-white/90 shadow-sm sticky top-0 z-50 px-6 py-4 flex items-center justify-between backdrop-blur-md">
-                <div class="flex items-center gap-4">
-                    <h1 class="text-2xl font-bold text-blue-900 tracking-wide flex items-center gap-2">
-                        <el-icon><Monitor /></el-icon>
-                        Project-4869
-                    </h1>
-                    <el-tag type="info" effect="plain">v1.0.0</el-tag>
+            
+            <div class="top-nav shadow sticky top-0 z-50 px-6 py-3 flex items-center justify-between backdrop-blur-md">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-600 text-white p-1.5 rounded-lg">
+                        <el-icon :size="20"><Monitor /></el-icon>
+                    </div>
+                    <h1 class="text-xl font-bold tracking-wide" style="color: var(--text-primary)">Project-4869</h1>
+                    <el-tag type="danger" size="small" effect="dark" round>APTX-4869</el-tag>
                 </div>
                 
-                <div class="flex items-center gap-4">
-                    <div class="flex items-center gap-2">
-                        <el-input v-model="cronExpression" placeholder="0 */1 * * *" style="width: 150px" size="small">
+                <div class="flex items-center gap-3">
+                    <el-button circle @click="toggleTheme" :icon="isDark ? Sunny : Moon" class="mr-2">
+                    </el-button>
+                    
+                    <div class="flex items-center gap-2 mr-4">
+                        <el-input v-model="cronExpression" placeholder="0 */1 * * *" style="width: 160px" size="small">
                             <template #prepend>Cron</template>
                         </el-input>
-                        <el-button type="primary" size="small" @click="updateCron" :loading="loadingCron">
-                            Save
+                        <el-button type="primary" size="small" @click="updateCron" :loading="loadingCron" plain>
+                            保存
                         </el-button>
                     </div>
                     
-                    <el-divider direction="vertical"></el-divider>
-
-                    <el-button type="danger" @click="triggerScrape" :loading="scraping">
-                        <el-icon class="mr-1"><Refresh /></el-icon> Full Scrape
-                    </el-button>
-                    
-                    <el-button @click="showLogs = true">
-                        <el-icon class="mr-1"><Document /></el-icon> Logs
-                    </el-button>
+                    <el-button-group>
+                        <el-button type="danger" @click="triggerScrape" :loading="scraping" :icon="Refresh">
+                            全量刷新
+                        </el-button>
+                        <el-button @click="showLogs = true" :icon="Document">
+                            日志
+                        </el-button>
+                    </el-button-group>
                 </div>
             </div>
 
-            <!-- Main Content -->
-            <div class="flex-1 p-8 container mx-auto">
+            <div class="flex-1 p-6 container mx-auto max-w-5xl flex flex-col">
                 
-                <!-- Stats / Filters (Optional) -->
-                <div class="mb-6 flex justify-between items-center">
-                    <div class="text-gray-600">
-                        Total Episodes Tracked: <span class="font-bold text-blue-600">{{ maxEpisode }}</span>
+                <div class="mb-6 stats-card p-4 rounded-xl shadow-sm flex justify-between items-center backdrop-blur-sm">
+                    <div style="color: var(--text-primary)">
+                        <span style="color: var(--text-secondary)">已收录至:</span> 
+                        <span class="font-black text-2xl mx-1" style="color: var(--text-blue)">#{{ maxEpisode }}</span> 
                     </div>
-                    <el-radio-group v-model="filterType" size="large">
-                        <el-radio-button label="all">All</el-radio-button>
-                        <el-radio-button label="missing">Missing</el-radio-button>
-                        <el-radio-button label="existing">Existing</el-radio-button>
+                    
+                    <el-radio-group v-model="filterType" @change="currentPage = 1" :fill="isDark ? '#1e40af' : '#409eff'">
+                        <el-radio-button label="all">全部</el-radio-button>
+                        <el-radio-button label="missing">仅缺失</el-radio-button>
+                        <el-radio-button label="existing">仅已存</el-radio-button>
                     </el-radio-group>
                 </div>
 
-                <!-- Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    <template v-for="ep in displayEpisodes" :key="ep.num">
+                <div class="space-y-6 flex-1">
+                    <template v-for="ep in paginatedEpisodes" :key="ep.num">
                         
-                        <!-- Existing Episode Card -->
-                        <div v-if="ep.data.length > 0" 
-                             class="episode-card bg-white rounded-xl p-4 border border-gray-100 relative group cursor-pointer"
-                             :class="{'ring-2 ring-blue-500': selectedEpisodes.includes(ep.num)}"
-                             @click="toggleSelection(ep.num)">
+                        <div v-if="ep.data.length > 0" class="resource-card rounded-xl shadow-sm overflow-hidden mb-6"> 
                             
-                            <div class="flex justify-between items-start mb-2">
-                                <span class="text-3xl font-black text-gray-200 absolute right-4 top-2 select-none z-0">#{{ ep.num }}</span>
-                                <el-tag size="small" effect="dark" class="z-10">Ep {{ ep.num }}</el-tag>
-                            </div>
-                            
-                            <div class="relative z-10 mt-6 space-y-2">
-                                <div v-for="(res, idx) in ep.data" :key="idx" class="text-sm border-b border-gray-100 pb-2 last:border-0 last:pb-0">
-                                    <div class="font-medium text-gray-800 truncate" :title="res.raw_title">
-                                        {{ res.raw_title.replace(res.episode, '').replace('[]', '').trim() || 'Standard Release' }}
-                                    </div>
-                                    <div class="flex justify-between items-center mt-1 text-xs text-gray-500">
-                                        <span class="bg-gray-100 px-1 rounded">{{ res.resolution || 'UNK' }}</span>
-                                        <el-button link type="primary" size="small" @click.stop="copyMagnet(res.magnet_link)">
-                                            Copy Magnet
-                                        </el-button>
-                                    </div>
-                                </div>
-                            </div>
+                            <div class="resource-card-header px-4 py-3 flex items-center justify-between border-b" style="border-color: var(--card-border); background: var(--header-bg);"> 
+                                <div class="flex items-center gap-3 overflow-hidden min-w-0"> 
+                                    <span class="text-xl font-black whitespace-nowrap flex-shrink-0" style="color: var(--text-blue)">第 {{ ep.num }} 集</span> 
+                                    
+                                    <div class="flex items-baseline gap-3 overflow-hidden min-w-0"> 
+                                        <span class="text-base font-bold truncate" style="color: var(--text-primary)" :title="ep.data[0].episode_title"> 
+                                            {{ ep.data[0].episode_title || cleanTitle(ep.data[0].raw_title, ep.num) }} 
+                                        </span> 
+                                        <span class="text-xs whitespace-nowrap flex-shrink-0 font-mono opacity-80" style="color: var(--text-secondary)"> 
+                                            {{ ep.data[0].publish_date }} 
+                                        </span> 
+                                    </div> 
+                                </div> 
+                                
+                                <el-tag size="small" type="info" class="flex-shrink-0 ml-2">{{ ep.data.length }} 个资源</el-tag> 
+                            </div> 
+                        
+                            <div class="divide-y" style="border-color: var(--card-border)"> 
+                                <div v-for="(res, idx) in ep.data" :key="idx" class="resource-row p-3 flex items-center gap-4 group hover:bg-gray-50 transition-colors" style="border-bottom: 1px solid var(--card-border)"> 
+                                    
+                                    <div class="flex items-center gap-2 flex-wrap flex-shrink-0"> 
+                                        <el-tag v-if="res.resolution" size="small" :type="res.resolution.includes('1080') ? 'success' : 'warning'" effect="light"> 
+                                            {{ res.resolution }} 
+                                        </el-tag> 
+                                        <el-tag v-if="res.subtitle && res.subtitle !== 'Unknown'" size="small" color="transparent" style="color: var(--text-blue); border-color: var(--card-border);"> 
+                                            {{ res.subtitle }} 
+                                        </el-tag> 
+                                        <el-tag v-if="res.source_type" size="small" type="danger" effect="plain" class="font-bold"> 
+                                            {{ res.source_type }} 
+                                        </el-tag> 
+                                        <el-tag v-if="res.container" size="small" type="info" effect="plain" class="font-mono"> 
+                                            {{ res.container }} 
+                                        </el-tag> 
+                                    </div> 
+                        
+                                    <div class="flex-1 min-w-0 flex items-center text-gray-400 opacity-60 group-hover:opacity-100 transition-opacity"> 
+                                        <el-icon class="mr-1.5 flex-shrink-0"><Paperclip /></el-icon> 
+                                        <span class="text-xs font-mono truncate cursor-text select-all" :title="res.raw_title"> 
+                                           {{ res.raw_title.replace(/^\[.*?\]\[.*?\]\[.*?\]/, '').trim() || res.raw_title }} 
+                                        </span> 
+                                    </div> 
+                        
+                                    <div class="flex items-center flex-shrink-0 pl-4"> 
+                                        <el-button type="primary" size="small" round @click="copyMagnet(res.magnet_link)" title="复制磁力链接"> 
+                                            复制
+                                        </el-button> 
+                                    </div> 
+                                </div> 
+                            </div> 
                         </div>
 
-                        <!-- Missing Episode Card -->
-                        <div v-else class="missing-card rounded-xl bg-gray-50/50">
-                            <div class="text-center">
-                                <div class="text-xl font-bold text-gray-300">#{{ ep.num }}</div>
-                                <div class="text-xs text-gray-400">Not Found</div>
-                            </div>
+                        <div v-else class="border-2 border-dashed rounded-xl p-4 flex items-center justify-center opacity-60" style="border-color: var(--card-border); background-color: var(--tag-info-bg)">
+                            <span class="font-mono mr-2" style="color: var(--text-secondary)">Episode {{ ep.num }}</span>
+                            <span class="text-xs px-2 py-0.5 rounded" style="color: var(--text-secondary); background-color: var(--card-border)">暂无收录</span>
                         </div>
 
                     </template>
                 </div>
+
+                <div class="flex justify-center mt-8 pb-8">
+                    <el-pagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="pageSize"
+                        :page-sizes="[12, 24, 48, 100]"
+                        layout="total, sizes, prev, pager, next, jumper"
+                        :total="filteredTotal"
+                        background
+                        @current-change="scrollToTop"
+                    />
+                </div>
             </div>
 
-            <!-- Log Drawer -->
-            <el-drawer v-model="showLogs" title="System Logs (Last 50 lines)" size="40%">
-                <pre class="bg-gray-900 text-green-400 p-4 rounded h-full overflow-auto text-xs font-mono whitespace-pre-wrap">{{ logContent }}</pre>
+            <el-drawer v-model="showLogs" title="系统运行日志" size="50%">
+                <div class="bg-gray-900 text-green-400 p-4 rounded h-full overflow-auto text-xs font-mono whitespace-pre-wrap leading-5">
+                    {{ logContent }}
+                </div>
                 <template #footer>
-                    <div style="flex: auto">
-                        <el-button @click="fetchLogs">Refresh</el-button>
-                    </div>
+                    <el-button @click="fetchLogs" type="success" plain>刷新日志</el-button>
                 </template>
             </el-drawer>
 
@@ -166,11 +291,47 @@
     </div>
 
     <script>
-        const { createApp, ref, computed, onMounted } = Vue;
-        const { ElMessage } = ElementPlus;
+        const { createApp, ref, computed, onMounted, watch } = Vue;
+        const { ElMessage, ElNotification } = ElementPlus;
 
         const app = createApp({
             setup() {
+                // 主题相关
+                const isDark = ref(false);
+                const toggleTheme = () => {
+                    isDark.value = !isDark.value;
+                    updateTheme();
+                };
+                const updateTheme = () => {
+                    const html = document.documentElement;
+                    if (isDark.value) {
+                        html.setAttribute('data-theme', 'dark');
+                        html.classList.add('dark'); // for Tailwind
+                        localStorage.setItem('theme', 'dark');
+                    } else {
+                        html.setAttribute('data-theme', 'light');
+                        html.classList.remove('dark'); // for Tailwind
+                        localStorage.setItem('theme', 'light');
+                    }
+                };
+
+                // 初始化主题
+                onMounted(() => {
+                    const savedTheme = localStorage.getItem('theme');
+                    if (savedTheme) {
+                        isDark.value = savedTheme === 'dark';
+                    } else {
+                        // 如果没有保存过，检测系统偏好
+                        isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    }
+                    updateTheme();
+                    
+                    // 设置 Element Plus 语言为中文
+                    app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
+                    fetchData();
+                });
+
+
                 const magnets = ref([]);
                 const groupedData = ref({});
                 const maxEpisode = ref(0);
@@ -178,49 +339,90 @@
                 const loadingCron = ref(false);
                 const scraping = ref(false);
                 const showLogs = ref(false);
-                const logContent = ref("Loading...");
+                const logContent = ref("正在加载日志...");
                 const filterType = ref("all");
-                const selectedEpisodes = ref([]);
+                
+                // 分页状态
+                const currentPage = ref(1);
+                const pageSize = ref(24);
 
-                // Fetch Data
+                const cleanTitle = (raw, epNum) => {
+                    if (!raw) return "";
+                    let title = raw;
+                    const removePatterns = [
+                        /\[银色子弹字幕组\]/g, /\[银色子弹\]/g, /\[SilverBullet\]/g,
+                        /\[名侦探柯南\]/g, /\[名探偵コナン\]/g, /\[Detective Conan\]/g, /\[Conan\]/g,
+                        /\[SBSUB\]/g
+                    ];
+                    removePatterns.forEach(p => title = title.replace(p, ''));
+                    if (epNum) {
+                        const epPatterns = [
+                            new RegExp(`\\[${epNum}\\]`, 'g'),
+                            new RegExp(`第${epNum}(集|话)`, 'g'),
+                            new RegExp(`\\s${epNum}\\s`, 'g')
+                        ];
+                        epPatterns.forEach(p => title = title.replace(p, ''));
+                    }
+                    const techPatterns = [
+                        /\[1080[Pp]\]/gi, /\[720[Pp]\]/gi, /\[4[Kk]\]/gi,
+                        /\[WEBRIP\]/gi, /\[BDRIP\]/gi, /\[HDTV\]/gi,
+                        /\[MP4\]/gi, /\[MKV\]/gi,
+                        /\[简日双语\]/g, /\[简日\]/g, /\[繁日\]/g, /\[CHS_JP\]/g
+                    ];
+                    techPatterns.forEach(p => title = title.replace(p, ''));
+                    title = title.replace(/\[\s*\]/g, '').replace(/【\s*】/g, '').replace(/\(\s*\)/g, '').trim();
+                    if (/^[-.]+$/.test(title)) return "";
+                    return title;
+                };
+
                 const fetchData = async () => {
                     try {
                         const res = await fetch('/api/magnets');
                         const json = await res.json();
                         magnets.value = json.data;
-                        maxEpisode.value = json.max_episode || 1190; // Default fallback
+                        maxEpisode.value = json.max_episode || 0;
                         groupedData.value = json.grouped_by_episode;
                     } catch (e) {
-                        ElMessage.error('Failed to load data');
+                        ElMessage.error('无法连接到服务器');
                     }
                 };
 
-                // Compute Display List
-                const displayEpisodes = computed(() => {
+                const filteredEpisodes = computed(() => {
                     const list = [];
-                    // Generate list from max down to 1
-                    for (let i = maxEpisode.value; i >= 1; i--) {
-                        const exists = groupedData.value[i] && groupedData.value[i].length > 0;
-                        
+                    const start = maxEpisode.value > 0 ? maxEpisode.value : 1;
+                    for (let i = start; i >= 1; i--) {
+                        const data = groupedData.value[i] || [];
+                        const exists = data.length > 0;
                         if (filterType.value === 'existing' && !exists) continue;
                         if (filterType.value === 'missing' && exists) continue;
-
-                        list.push({
-                            num: i,
-                            data: groupedData.value[i] || []
-                        });
+                        list.push({ num: i, data: data });
                     }
                     return list;
                 });
 
-                // Actions
+                const filteredTotal = computed(() => filteredEpisodes.value.length);
+
+                const paginatedEpisodes = computed(() => {
+                    const start = (currentPage.value - 1) * pageSize.value;
+                    const end = start + pageSize.value;
+                    return filteredEpisodes.value.slice(start, end);
+                });
+
+                const scrollToTop = () => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                };
+
                 const triggerScrape = async () => {
                     scraping.value = true;
                     try {
                         await fetch('/api/scrape/full', { method: 'POST' });
-                        ElMessage.success('Scraper triggered in background');
+                        ElNotification({
+                            title: '任务已提交',
+                            message: '全量爬虫正在后台运行，请稍后刷新查看结果',
+                            type: 'success',
+                        });
                     } catch (e) {
-                        ElMessage.error('Failed to trigger scrape');
+                        ElMessage.error('请求失败');
                     } finally {
                         setTimeout(() => { scraping.value = false; }, 2000);
                     }
@@ -234,10 +436,10 @@
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({ cron_expression: cronExpression.value })
                         });
-                        if (res.ok) ElMessage.success('Schedule updated');
-                        else ElMessage.error('Invalid cron expression');
+                        if (res.ok) ElMessage.success('定时策略已更新');
+                        else ElMessage.error('格式错误');
                     } catch (e) {
-                        ElMessage.error('Error updating schedule');
+                        ElMessage.error('网络错误');
                     } finally {
                         loadingCron.value = false;
                     }
@@ -249,35 +451,27 @@
                         const json = await res.json();
                         logContent.value = json.logs.join('');
                     } catch (e) {
-                        logContent.value = "Error loading logs.";
+                        logContent.value = "无法获取日志";
                     }
                 };
 
                 const copyMagnet = (link) => {
                     navigator.clipboard.writeText(link).then(() => {
-                        ElMessage.success('Magnet copied!');
+                        ElMessage({ message: '磁力链接已复制', type: 'success', duration: 1500 });
                     });
                 };
 
-                const toggleSelection = (num) => {
-                    const idx = selectedEpisodes.value.indexOf(num);
-                    if (idx === -1) selectedEpisodes.value.push(num);
-                    else selectedEpisodes.value.splice(idx, 1);
-                };
-
-                // Watch logs drawer
-                Vue.watch(showLogs, (val) => {
-                    if (val) fetchLogs();
-                });
-
-                onMounted(() => {
-                    fetchData();
-                });
-
                 return {
-                    magnets, maxEpisode, cronExpression, displayEpisodes,
-                    loadingCron, scraping, showLogs, logContent, filterType, selectedEpisodes,
-                    triggerScrape, updateCron, fetchLogs, copyMagnet, toggleSelection
+                    magnets, maxEpisode, cronExpression, 
+                    paginatedEpisodes, filteredTotal, currentPage, pageSize,
+                    loadingCron, scraping, showLogs, logContent, filterType,
+                    triggerScrape, updateCron, fetchLogs, copyMagnet, cleanTitle, scrollToTop,
+                    isDark, toggleTheme, // 主题相关
+                    Refresh: ElementPlusIconsVue.Refresh,
+                    Document: ElementPlusIconsVue.Document,
+                    Moon: ElementPlusIconsVue.Moon,
+                    Sunny: ElementPlusIconsVue.Sunny,
+                    Paperclip: ElementPlusIconsVue.Paperclip
                 };
             }
         });

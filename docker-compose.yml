@@ -3,6 +3,7 @@ version: '3.8'
 services:
   scraper:
     build: .
+    image: ${DOCKER_USERNAME:-your_dockerhub_username}/project-4869:latest
     container_name: project-4869-scraper
     volumes:
       - ./data:/app/data

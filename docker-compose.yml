@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  scraper:
+    build: .
+    container_name: project-4869-scraper
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+    # Keep it running or run a specific script
+    # For dev, we might want to keep it alive
+    # command: tail -f /dev/null
+    ports:
+      - "4869:4869"

@@ -1,0 +1,292 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project-4869: Detective Conan Manager</title>
+    
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <!-- Element Plus -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+            overflow-x: hidden;
+        }
+        .bg-wallpaper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://images6.alphacoders.com/606/606263.jpg'); /* Detective Conan Wallpaper */
+            background-size: cover;
+            background-position: center;
+            z-index: -1;
+        }
+        .glass-container {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            min-height: 100vh;
+        }
+        .episode-card {
+            transition: all 0.3s ease;
+        }
+        .episode-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .missing-card {
+            border: 2px dashed #dcdfe6;
+            color: #909399;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 120px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="bg-wallpaper"></div>
+        <div class="glass-container flex flex-col">
+            <!-- Top Bar -->
+            <div class="bg-white/90 shadow-sm sticky top-0 z-50 px-6 py-4 flex items-center justify-between backdrop-blur-md">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-2xl font-bold text-blue-900 tracking-wide flex items-center gap-2">
+                        <el-icon><Monitor /></el-icon>
+                        Project-4869
+                    </h1>
+                    <el-tag type="info" effect="plain">v1.0.0</el-tag>
+                </div>
+                
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <el-input v-model="cronExpression" placeholder="0 */1 * * *" style="width: 150px" size="small">
+                            <template #prepend>Cron</template>
+                        </el-input>
+                        <el-button type="primary" size="small" @click="updateCron" :loading="loadingCron">
+                            Save
+                        </el-button>
+                    </div>
+                    
+                    <el-divider direction="vertical"></el-divider>
+
+                    <el-button type="danger" @click="triggerScrape" :loading="scraping">
+                        <el-icon class="mr-1"><Refresh /></el-icon> Full Scrape
+                    </el-button>
+                    
+                    <el-button @click="showLogs = true">
+                        <el-icon class="mr-1"><Document /></el-icon> Logs
+                    </el-button>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="flex-1 p-8 container mx-auto">
+                
+                <!-- Stats / Filters (Optional) -->
+                <div class="mb-6 flex justify-between items-center">
+                    <div class="text-gray-600">
+                        Total Episodes Tracked: <span class="font-bold text-blue-600">{{ maxEpisode }}</span>
+                    </div>
+                    <el-radio-group v-model="filterType" size="large">
+                        <el-radio-button label="all">All</el-radio-button>
+                        <el-radio-button label="missing">Missing</el-radio-button>
+                        <el-radio-button label="existing">Existing</el-radio-button>
+                    </el-radio-group>
+                </div>
+
+                <!-- Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <template v-for="ep in displayEpisodes" :key="ep.num">
+                        
+                        <!-- Existing Episode Card -->
+                        <div v-if="ep.data.length > 0" 
+                             class="episode-card bg-white rounded-xl p-4 border border-gray-100 relative group cursor-pointer"
+                             :class="{'ring-2 ring-blue-500': selectedEpisodes.includes(ep.num)}"
+                             @click="toggleSelection(ep.num)">
+                            
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-3xl font-black text-gray-200 absolute right-4 top-2 select-none z-0">#{{ ep.num }}</span>
+                                <el-tag size="small" effect="dark" class="z-10">Ep {{ ep.num }}</el-tag>
+                            </div>
+                            
+                            <div class="relative z-10 mt-6 space-y-2">
+                                <div v-for="(res, idx) in ep.data" :key="idx" class="text-sm border-b border-gray-100 pb-2 last:border-0 last:pb-0">
+                                    <div class="font-medium text-gray-800 truncate" :title="res.raw_title">
+                                        {{ res.raw_title.replace(res.episode, '').replace('[]', '').trim() || 'Standard Release' }}
+                                    </div>
+                                    <div class="flex justify-between items-center mt-1 text-xs text-gray-500">
+                                        <span class="bg-gray-100 px-1 rounded">{{ res.resolution || 'UNK' }}</span>
+                                        <el-button link type="primary" size="small" @click.stop="copyMagnet(res.magnet_link)">
+                                            Copy Magnet
+                                        </el-button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Missing Episode Card -->
+                        <div v-else class="missing-card rounded-xl bg-gray-50/50">
+                            <div class="text-center">
+                                <div class="text-xl font-bold text-gray-300">#{{ ep.num }}</div>
+                                <div class="text-xs text-gray-400">Not Found</div>
+                            </div>
+                        </div>
+
+                    </template>
+                </div>
+            </div>
+
+            <!-- Log Drawer -->
+            <el-drawer v-model="showLogs" title="System Logs (Last 50 lines)" size="40%">
+                <pre class="bg-gray-900 text-green-400 p-4 rounded h-full overflow-auto text-xs font-mono whitespace-pre-wrap">{{ logContent }}</pre>
+                <template #footer>
+                    <div style="flex: auto">
+                        <el-button @click="fetchLogs">Refresh</el-button>
+                    </div>
+                </template>
+            </el-drawer>
+
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+        const { ElMessage } = ElementPlus;
+
+        const app = createApp({
+            setup() {
+                const magnets = ref([]);
+                const groupedData = ref({});
+                const maxEpisode = ref(0);
+                const cronExpression = ref("0 */1 * * *");
+                const loadingCron = ref(false);
+                const scraping = ref(false);
+                const showLogs = ref(false);
+                const logContent = ref("Loading...");
+                const filterType = ref("all");
+                const selectedEpisodes = ref([]);
+
+                // Fetch Data
+                const fetchData = async () => {
+                    try {
+                        const res = await fetch('/api/magnets');
+                        const json = await res.json();
+                        magnets.value = json.data;
+                        maxEpisode.value = json.max_episode || 1190; // Default fallback
+                        groupedData.value = json.grouped_by_episode;
+                    } catch (e) {
+                        ElMessage.error('Failed to load data');
+                    }
+                };
+
+                // Compute Display List
+                const displayEpisodes = computed(() => {
+                    const list = [];
+                    // Generate list from max down to 1
+                    for (let i = maxEpisode.value; i >= 1; i--) {
+                        const exists = groupedData.value[i] && groupedData.value[i].length > 0;
+                        
+                        if (filterType.value === 'existing' && !exists) continue;
+                        if (filterType.value === 'missing' && exists) continue;
+
+                        list.push({
+                            num: i,
+                            data: groupedData.value[i] || []
+                        });
+                    }
+                    return list;
+                });
+
+                // Actions
+                const triggerScrape = async () => {
+                    scraping.value = true;
+                    try {
+                        await fetch('/api/scrape/full', { method: 'POST' });
+                        ElMessage.success('Scraper triggered in background');
+                    } catch (e) {
+                        ElMessage.error('Failed to trigger scrape');
+                    } finally {
+                        setTimeout(() => { scraping.value = false; }, 2000);
+                    }
+                };
+
+                const updateCron = async () => {
+                    loadingCron.value = true;
+                    try {
+                        const res = await fetch('/api/rss/config', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ cron_expression: cronExpression.value })
+                        });
+                        if (res.ok) ElMessage.success('Schedule updated');
+                        else ElMessage.error('Invalid cron expression');
+                    } catch (e) {
+                        ElMessage.error('Error updating schedule');
+                    } finally {
+                        loadingCron.value = false;
+                    }
+                };
+
+                const fetchLogs = async () => {
+                    try {
+                        const res = await fetch('/api/system/logs');
+                        const json = await res.json();
+                        logContent.value = json.logs.join('');
+                    } catch (e) {
+                        logContent.value = "Error loading logs.";
+                    }
+                };
+
+                const copyMagnet = (link) => {
+                    navigator.clipboard.writeText(link).then(() => {
+                        ElMessage.success('Magnet copied!');
+                    });
+                };
+
+                const toggleSelection = (num) => {
+                    const idx = selectedEpisodes.value.indexOf(num);
+                    if (idx === -1) selectedEpisodes.value.push(num);
+                    else selectedEpisodes.value.splice(idx, 1);
+                };
+
+                // Watch logs drawer
+                Vue.watch(showLogs, (val) => {
+                    if (val) fetchLogs();
+                });
+
+                onMounted(() => {
+                    fetchData();
+                });
+
+                return {
+                    magnets, maxEpisode, cronExpression, displayEpisodes,
+                    loadingCron, scraping, showLogs, logContent, filterType, selectedEpisodes,
+                    triggerScrape, updateCron, fetchLogs, copyMagnet, toggleSelection
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            app.component(key, component)
+        }
+        app.mount('#app');
+    </script>
+</body>
+</html>

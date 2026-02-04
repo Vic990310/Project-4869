@@ -1,0 +1,8 @@
+playwright
+requests
+feedparser
+pytz
+fastapi
+uvicorn
+apscheduler
+jinja2

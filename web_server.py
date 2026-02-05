@@ -91,6 +91,34 @@ async def get_magnets():
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
+@app.get("/api/options")
+async def get_options():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        options = {}
+        # 获取四个核心维度的所有去重选项
+        fields = {
+            'resolution': '分辨率',
+            'subtitle': '字幕',
+            'source_type': '来源',
+            'container': '容器'
+        }
+        
+        for field in fields.keys():
+            # Use f-string for field name is safe here because keys are hardcoded above
+            cursor.execute(f"SELECT DISTINCT {field} FROM magnets WHERE {field} IS NOT NULL AND {field} != ''")
+            # 过滤掉 None，转为列表
+            items = [row[0] for row in cursor.fetchall() if row[0]]
+            options[field] = sorted(items)
+            
+        conn.close()
+        return options
+    except Exception as e:
+        logger.error(f"Get options failed: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 @app.post("/api/emby/missing")
 async def check_emby_missing(config: EmbyConfigRequest):
     try:

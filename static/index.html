@@ -149,112 +149,133 @@
     </style>
 </head>
 <body>
-    <div id="app">
+    <div id="app" class="h-screen flex overflow-hidden">
         <div class="bg-wallpaper"></div>
-        <div class="glass-container flex flex-col">
-            
-            <div class="top-nav shadow sticky top-0 z-50 px-6 py-3 flex items-center justify-between backdrop-blur-md">
-                <div class="flex items-center gap-3">
-                    <div class="bg-blue-600 text-white p-1.5 rounded-lg">
-                        <el-icon :size="20"><Monitor /></el-icon>
-                    </div>
-                    <h1 class="text-xl font-bold tracking-wide" style="color: var(--text-primary)">Project-4869</h1>
-                    <el-tag type="danger" size="small" effect="dark" round>APTX-4869</el-tag>
-                </div>
+        
+        <aside class="w-72 flex flex-col border-r border-white/20 bg-white/80 backdrop-blur-xl shadow-xl z-20 flex-shrink-0">
+            <div class="p-6 border-b border-gray-100">
+                <h1 class="text-xl font-bold text-blue-900 flex items-center gap-2">
+                    <el-icon><Monitor /></el-icon> Project-4869
+                </h1>
+            </div>
+
+            <div class="p-4 flex-1 overflow-y-auto space-y-4">
+                <h3 class="text-xs font-bold text-gray-400 uppercase">Emby 连接</h3>
+                <el-input v-model="embyConfig.host" placeholder="http://ip:8096" size="small">
+                    <template #prefix><el-icon><Link /></el-icon></template>
+                </el-input>
+                <el-input v-model="embyConfig.apiKey" placeholder="API Key" type="password" show-password size="small">
+                    <template #prefix><el-icon><Key /></el-icon></template>
+                </el-input>
+                <el-input v-model="embyConfig.tmdbId" placeholder="TMDB ID (默认30983)" size="small">
+                    <template #prefix><el-icon><PriceTag /></el-icon></template>
+                </el-input>
+                <el-button type="primary" class="w-full" @click="syncEmby" :loading="syncing">保存并同步</el-button>
                 
-                <div class="flex items-center gap-3">
-                    <el-button circle @click="toggleTheme" :icon="isDark ? Sunny : Moon" class="mr-2">
-                    </el-button>
-                    
-                    <div class="flex items-center gap-2 mr-4">
-                        <el-input v-model="cronExpression" placeholder="0 */1 * * *" style="width: 160px" size="small">
-                            <template #prepend>Cron</template>
-                        </el-input>
-                        <el-button type="primary" size="small" @click="updateCron" :loading="loadingCron" plain>
-                            保存
-                        </el-button>
+                <div v-if="lastSyncTime" class="mt-2 p-2 rounded text-xs border" style="background-color: var(--tag-info-bg); border-color: var(--glass-border);">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-gray-500">媒体库共获取</span>
+                        <span class="font-bold" style="color: var(--text-blue)">{{ embyTotalCount }} 集</span>
                     </div>
-                    
-                    <el-button-group>
-                        <el-button type="danger" @click="triggerScrape" :loading="scraping" :icon="Refresh">
-                            全量刷新
-                        </el-button>
-                        <el-button @click="showLogs = true" :icon="Document">
-                            日志
-                        </el-button>
-                    </el-button-group>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-500">当前缺失</span>
+                        <span class="font-bold text-orange-500">{{ embyMissingList.length }} 集</span>
+                    </div>
+                </div>
+
+                <el-divider></el-divider>
+                
+                <h3 class="text-xs font-bold text-gray-400 uppercase">系统控制</h3>
+                <el-button type="danger" plain class="w-full" @click="triggerScrape" :loading="scraping" size="small">全量爬虫抓取</el-button>
+                <el-popconfirm title="确定要清空所有数据吗？此操作不可恢复。" @confirm="clearDatabase">
+                    <template #reference>
+                        <el-button type="warning" plain class="w-full mt-2" size="small">清空数据库</el-button>
+                    </template>
+                </el-popconfirm>
+                <div class="flex gap-2 pt-2 items-center">
+                    <el-switch v-model="rssEnabled" active-text="RSS 自动更新" @change="updateCron" :loading="loadingCron" style="--el-switch-on-color: #13ce66"></el-switch>
+                    <el-input v-model="cronExpression" size="small" placeholder="Cron 表达式" style="width: 120px"></el-input>
                 </div>
             </div>
 
-            <div class="flex-1 p-6 container mx-auto max-w-5xl flex flex-col">
-                
-                <div class="mb-6 stats-card p-4 rounded-xl shadow-sm flex justify-between items-center backdrop-blur-sm">
-                    <div style="color: var(--text-primary)">
-                        <span style="color: var(--text-secondary)">已收录至:</span> 
-                        <span class="font-black text-2xl mx-1" style="color: var(--text-blue)">#{{ maxEpisode }}</span> 
-                    </div>
-                    
-                    <el-radio-group v-model="filterType" @change="currentPage = 1" :fill="isDark ? '#1e40af' : '#409eff'">
-                        <el-radio-button label="all">全部</el-radio-button>
-                        <el-radio-button label="missing">仅缺失</el-radio-button>
-                        <el-radio-button label="existing">仅已存</el-radio-button>
-                    </el-radio-group>
+            <div class="h-48 bg-gray-900 p-3 flex flex-col">
+                <div class="flex justify-between text-xs text-gray-400 mb-2">
+                    <span>Logs</span>
+                    <el-icon class="cursor-pointer" @click="fetchLogs"><RefreshRight /></el-icon>
                 </div>
+                <div class="flex-1 overflow-auto font-mono text-xs text-green-400 whitespace-pre-wrap break-all leading-tight">
+                    {{ logContent }}
+                </div>
+            </div>
+        </aside>
 
-                <div class="space-y-6 flex-1">
+        <main class="flex-1 flex flex-col min-w-0 glass-container">
+            <header class="bg-white/60 backdrop-blur-md border-b border-gray-100 px-6 py-3 flex justify-between items-center">
+                <div class="text-sm text-gray-600">
+                    数据库收录: <span class="font-bold text-blue-600 text-lg">{{ maxEpisode }}</span> 集
+                    <span v-if="lastSyncTime" class="ml-4 text-xs text-gray-500">
+                        (Emby 缺失: <span class="text-orange-500 font-bold">{{ embyMissingList.length }}</span> 集)
+                    </span>
+                </div>
+                <el-switch v-model="isEmbyMode" active-text="仅看 Emby 缺失" inline-prompt style="--el-switch-on-color: #f97316" />
+            </header>
+
+            <div class="flex-1 overflow-y-auto p-6 scroll-smooth">
+                <div class="max-w-6xl mx-auto space-y-4">
                     <template v-for="ep in paginatedEpisodes" :key="ep.num">
                         
-                        <div v-if="ep.data.length > 0" class="resource-card rounded-xl shadow-sm overflow-hidden mb-6"> 
+                        <div v-if="ep.data.length > 0" class="resource-card rounded-xl shadow-sm overflow-hidden mb-6" 
+                             :class="{'ring-2 ring-orange-400 bg-orange-50/50': isEmbyMode && (!lastSyncTime || embyMissingList.includes(ep.num))}">
                             
-                            <div class="resource-card-header px-4 py-3 flex items-center justify-between border-b" style="border-color: var(--card-border); background: var(--header-bg);"> 
-                                <div class="flex items-center gap-3 overflow-hidden min-w-0"> 
-                                    <span class="text-xl font-black whitespace-nowrap flex-shrink-0" style="color: var(--text-blue)">第 {{ ep.num }} 集</span> 
+                            <div class="resource-card-header px-4 py-3 flex items-center justify-between border-b" style="border-color: var(--card-border); background: var(--header-bg);">
+                                <div class="flex items-center gap-3 overflow-hidden min-w-0">
+                                    <span class="text-xl font-black whitespace-nowrap flex-shrink-0" style="color: var(--text-blue)">第 {{ ep.num }} 集</span>
                                     
-                                    <div class="flex items-baseline gap-3 overflow-hidden min-w-0"> 
-                                        <span class="text-base font-bold truncate" style="color: var(--text-primary)" :title="ep.data[0].episode_title"> 
-                                            {{ ep.data[0].episode_title || cleanTitle(ep.data[0].raw_title, ep.num) }} 
-                                        </span> 
-                                        <span class="text-xs whitespace-nowrap flex-shrink-0 font-mono opacity-80" style="color: var(--text-secondary)"> 
-                                            {{ ep.data[0].publish_date }} 
-                                        </span> 
-                                    </div> 
-                                </div> 
+                                    <div class="flex items-baseline gap-3 overflow-hidden min-w-0">
+                                        <span class="text-base font-bold truncate" style="color: var(--text-primary)" :title="ep.data[0].episode_title">
+                                            {{ ep.data[0].episode_title || cleanTitle(ep.data[0].raw_title, ep.num) }}
+                                        </span>
+                                        <span class="text-xs whitespace-nowrap flex-shrink-0 font-mono opacity-80" style="color: var(--text-secondary)">
+                                            {{ ep.data[0].publish_date }}
+                                        </span>
+                                    </div>
+                                </div>
                                 
-                                <el-tag size="small" type="info" class="flex-shrink-0 ml-2">{{ ep.data.length }} 个资源</el-tag> 
-                            </div> 
+                                <el-tag size="small" type="info" class="flex-shrink-0 ml-2">{{ ep.data.length }} 个资源</el-tag>
+                            </div>
                         
-                            <div class="divide-y" style="border-color: var(--card-border)"> 
-                                <div v-for="(res, idx) in ep.data" :key="idx" class="resource-row p-3 flex items-center gap-4 group hover:bg-gray-50 transition-colors" style="border-bottom: 1px solid var(--card-border)"> 
+                            <div class="divide-y" style="border-color: var(--card-border)">
+                                <div v-for="(res, idx) in ep.data" :key="idx" class="resource-row p-3 flex items-center gap-4 group hover:bg-gray-50 transition-colors" style="border-bottom: 1px solid var(--card-border)">
                                     
-                                    <div class="flex items-center gap-2 flex-wrap flex-shrink-0"> 
-                                        <el-tag v-if="res.resolution" size="small" :type="res.resolution.includes('1080') ? 'success' : 'warning'" effect="light"> 
-                                            {{ res.resolution }} 
-                                        </el-tag> 
-                                        <el-tag v-if="res.subtitle && res.subtitle !== 'Unknown'" size="small" color="transparent" style="color: var(--text-blue); border-color: var(--card-border);"> 
-                                            {{ res.subtitle }} 
-                                        </el-tag> 
-                                        <el-tag v-if="res.source_type" size="small" type="danger" effect="plain" class="font-bold"> 
-                                            {{ res.source_type }} 
-                                        </el-tag> 
-                                        <el-tag v-if="res.container" size="small" type="info" effect="plain" class="font-mono"> 
-                                            {{ res.container }} 
-                                        </el-tag> 
-                                    </div> 
+                                    <div class="flex items-center gap-2 flex-wrap flex-shrink-0">
+                                        <el-tag v-if="res.resolution" size="small" :type="res.resolution.includes('1080') ? 'success' : 'warning'" effect="light">
+                                            {{ res.resolution }}
+                                        </el-tag>
+                                        <el-tag v-if="res.subtitle && res.subtitle !== 'Unknown'" size="small" color="transparent" style="color: var(--text-blue); border-color: var(--card-border);">
+                                            {{ res.subtitle }}
+                                        </el-tag>
+                                        <el-tag v-if="res.source_type" size="small" type="danger" effect="plain" class="font-bold">
+                                            {{ res.source_type }}
+                                        </el-tag>
+                                        <el-tag v-if="res.container" size="small" type="info" effect="plain" class="font-mono">
+                                            {{ res.container }}
+                                        </el-tag>
+                                    </div>
                         
-                                    <div class="flex-1 min-w-0 flex items-center text-gray-400 opacity-60 group-hover:opacity-100 transition-opacity"> 
-                                        <el-icon class="mr-1.5 flex-shrink-0"><Paperclip /></el-icon> 
-                                        <span class="text-xs font-mono truncate cursor-text select-all" :title="res.raw_title"> 
-                                           {{ res.raw_title.replace(/^\[.*?\]\[.*?\]\[.*?\]/, '').trim() || res.raw_title }} 
-                                        </span> 
-                                    </div> 
+                                    <div class="flex-1 min-w-0 flex items-center text-gray-400 opacity-60 group-hover:opacity-100 transition-opacity">
+                                        <el-icon class="mr-1.5 flex-shrink-0"><Paperclip /></el-icon>
+                                        <span class="text-xs font-mono truncate cursor-text select-all" :title="res.raw_title">
+                                           {{ res.raw_title.replace(/^\[.*?\]\[.*?\]\[.*?\]/, '').trim() || res.raw_title }}
+                                        </span>
+                                    </div>
                         
-                                    <div class="flex items-center flex-shrink-0 pl-4"> 
-                                        <el-button type="primary" size="small" round @click="copyMagnet(res.magnet_link)" title="复制磁力链接"> 
+                                    <div class="flex items-center flex-shrink-0 pl-4">
+                                        <el-button type="primary" size="small" round @click="copyMagnet(res.magnet_link)" title="复制磁力链接">
                                             复制
-                                        </el-button> 
-                                    </div> 
-                                </div> 
-                            </div> 
+                                        </el-button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div v-else class="border-2 border-dashed rounded-xl p-4 flex items-center justify-center opacity-60" style="border-color: var(--card-border); background-color: var(--tag-info-bg)">
@@ -264,7 +285,6 @@
 
                     </template>
                 </div>
-
                 <div class="flex justify-center mt-8 pb-8">
                     <el-pagination
                         v-model:current-page="currentPage"
@@ -277,24 +297,18 @@
                     />
                 </div>
             </div>
-
-            <el-drawer v-model="showLogs" title="系统运行日志" size="50%">
-                <div class="bg-gray-900 text-green-400 p-4 rounded h-full overflow-auto text-xs font-mono whitespace-pre-wrap leading-5">
-                    {{ logContent }}
-                </div>
-                <template #footer>
-                    <el-button @click="fetchLogs" type="success" plain>刷新日志</el-button>
-                </template>
-            </el-drawer>
-
-        </div>
+        </main>
     </div>
 
     <script>
         const { createApp, ref, computed, onMounted, watch } = Vue;
+        const { Search, Refresh, Link, Key, Film, RefreshRight, Moon, Sunny, PriceTag } = ElementPlusIconsVue;
         const { ElMessage, ElNotification } = ElementPlus;
 
         const app = createApp({
+            components: {
+                Search, Refresh, Link, Key, Film, RefreshRight, Moon, Sunny, PriceTag
+            },
             setup() {
                 // 主题相关
                 const isDark = ref(false);
@@ -326,9 +340,15 @@
                     }
                     updateTheme();
                     
+                    // 读取本地存储配置
+                    const savedConfig = localStorage.getItem('project4869_emby_config');
+                    if (savedConfig) embyConfig.value = JSON.parse(savedConfig);
+
                     // 设置 Element Plus 语言为中文
                     app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
                     fetchData();
+                    fetchLogs(); // 初始加载日志
+                    setInterval(fetchLogs, 5000); // 每5秒自动刷新日志
                 });
 
 
@@ -336,15 +356,69 @@
                 const groupedData = ref({});
                 const maxEpisode = ref(0);
                 const cronExpression = ref("0 */1 * * *");
+                const rssEnabled = ref(false);
                 const loadingCron = ref(false);
                 const scraping = ref(false);
                 const showLogs = ref(false);
                 const logContent = ref("正在加载日志...");
                 const filterType = ref("all");
-                
+                const isEmbyMode = ref(false);
+                const embyMissingList = ref([]);
+                const embyTotalCount = ref(0);
+                const lastSyncTime = ref("");
+
+                // Emby 配置
+                const embyConfig = ref({ host: '', apiKey: '', tmdbId: '30983' });
+                const syncing = ref(false);
+
                 // 分页状态
                 const currentPage = ref(1);
                 const pageSize = ref(24);
+
+                const syncEmby = async () => {
+                    if (!embyConfig.value.host || !embyConfig.value.apiKey) {
+                        ElMessage.warning('请先填写 Host 和 API Key');
+                        return;
+                    }
+                    
+                    syncing.value = true;
+                    // 保存配置到浏览器
+                    localStorage.setItem('project4869_emby_config', JSON.stringify(embyConfig.value));
+                    
+                    try {
+                        const res = await fetch('/api/emby/missing', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                host: embyConfig.value.host,
+                                api_key: embyConfig.value.apiKey,
+                                tmdb_id: embyConfig.value.tmdbId,
+                                max_episode: maxEpisode.value
+                            })
+                        });
+                        const json = await res.json();
+                        
+                        if (json.error) {
+                            ElMessage.error(json.error);
+                        } else {
+                            embyMissingList.value = json.missing_episodes;
+                            embyTotalCount.value = json.total_count || 0;
+                            lastSyncTime.value = new Date().toLocaleTimeString();
+                            
+                            if (json.missing_episodes.length > 0) {
+                                ElMessage.success(`同步成功，发现 ${json.missing_episodes.length} 集缺失`);
+                                isEmbyMode.value = true; // 自动开启筛选
+                            } else {
+                                ElMessage.success('同步成功，您的媒体库是完整的！');
+                                isEmbyMode.value = false;
+                            }
+                        }
+                    } catch (e) {
+                        ElMessage.error('网络请求失败');
+                    } finally {
+                        syncing.value = false;
+                    }
+                };
 
                 const cleanTitle = (raw, epNum) => {
                     if (!raw) return "";
@@ -392,9 +466,15 @@
                     const start = maxEpisode.value > 0 ? maxEpisode.value : 1;
                     for (let i = start; i >= 1; i--) {
                         const data = groupedData.value[i] || [];
+                        
+                        // Emby 模式下，只显示缺失列表里的集数
+                        if (isEmbyMode.value && lastSyncTime.value && !embyMissingList.value.includes(i)) continue;
+                        
+                        // 原有的筛选逻辑
                         const exists = data.length > 0;
                         if (filterType.value === 'existing' && !exists) continue;
                         if (filterType.value === 'missing' && exists) continue;
+
                         list.push({ num: i, data: data });
                     }
                     return list;
@@ -428,20 +508,56 @@
                     }
                 };
 
-                const updateCron = async () => {
+                const updateCron = async (newVal) => {
+                    // 只在试图打开开关时进行校验
+                    if (newVal === true) {
+                        if (!cronExpression.value || !cronExpression.value.trim()) {
+                            ElMessage.warning('请先填写 Cron 表达式');
+                            rssEnabled.value = false; // 回滚状态
+                            return;
+                        }
+                    }
+
                     loadingCron.value = true;
                     try {
                         const res = await fetch('/api/rss/config', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ cron_expression: cronExpression.value })
+                            body: JSON.stringify({ 
+                                cron_expression: cronExpression.value,
+                                enabled: rssEnabled.value
+                            })
                         });
-                        if (res.ok) ElMessage.success('定时策略已更新');
-                        else ElMessage.error('格式错误');
+                        const json = await res.json();
+                        if (res.ok) {
+                            ElMessage.success(json.message);
+                        } else {
+                            ElMessage.error(json.error || '更新失败');
+                            // 如果是开启失败，则回滚开关
+                            if (rssEnabled.value) rssEnabled.value = false;
+                        }
                     } catch (e) {
-                        ElMessage.error('网络错误');
+                        ElMessage.error('请求失败');
+                        // 如果是开启失败，则回滚开关
+                        if (rssEnabled.value) rssEnabled.value = false;
                     } finally {
                         loadingCron.value = false;
+                    }
+                };
+
+                const clearDatabase = async () => {
+                    try {
+                        const res = await fetch('/api/database', { method: 'DELETE' });
+                        if (res.ok) {
+                            ElMessage.success('数据库已清空');
+                            magnets.value = [];
+                            maxEpisode.value = 0;
+                            groupedData.value = {};
+                        } else {
+                            ElMessage.error('清空失败');
+                        }
+                    } catch (e) {
+                        ElMessage.error('请求失败');
                     }
                 };
 
@@ -449,7 +565,7 @@
                     try {
                         const res = await fetch('/api/system/logs');
                         const json = await res.json();
-                        logContent.value = json.logs.join('');
+                        logContent.value = json.logs.reverse().join('');
                     } catch (e) {
                         logContent.value = "无法获取日志";
                     }
@@ -462,16 +578,46 @@
                 };
 
                 return {
-                    magnets, maxEpisode, cronExpression, 
-                    paginatedEpisodes, filteredTotal, currentPage, pageSize,
-                    loadingCron, scraping, showLogs, logContent, filterType,
-                    triggerScrape, updateCron, fetchLogs, copyMagnet, cleanTitle, scrollToTop,
-                    isDark, toggleTheme, // 主题相关
+                    isDark,
+                    toggleTheme,
+                    Sunny: ElementPlusIconsVue.Sunny,
+                    Moon: ElementPlusIconsVue.Moon,
+                    Monitor: ElementPlusIconsVue.Monitor,
                     Refresh: ElementPlusIconsVue.Refresh,
                     Document: ElementPlusIconsVue.Document,
-                    Moon: ElementPlusIconsVue.Moon,
-                    Sunny: ElementPlusIconsVue.Sunny,
-                    Paperclip: ElementPlusIconsVue.Paperclip
+                    Paperclip: ElementPlusIconsVue.Paperclip,
+                    Link: ElementPlusIconsVue.Link,
+                    Key: ElementPlusIconsVue.Key,
+                    Film: ElementPlusIconsVue.Film,
+                    PriceTag: ElementPlusIconsVue.PriceTag,
+                    RefreshRight: ElementPlusIconsVue.RefreshRight,
+                    magnets,
+                    maxEpisode,
+                    cronExpression,
+                    rssEnabled,
+                    loadingCron,
+                    updateCron,
+                    clearDatabase,
+                    scraping,
+                    triggerScrape,
+                    showLogs,
+                    logContent,
+                    fetchLogs,
+                    filterType,
+                    isEmbyMode,
+                    embyMissingList,
+                    embyTotalCount,
+                    embyConfig,
+                    syncEmby,
+                    syncing,
+                    lastSyncTime,
+                    cleanTitle,
+                    copyMagnet,
+                    paginatedEpisodes,
+                    filteredTotal,
+                    currentPage,
+                    pageSize,
+                    scrollToTop
                 };
             }
         });

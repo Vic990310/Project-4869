@@ -3,6 +3,7 @@ import os
 import sqlite3
 import asyncio
 import subprocess
+import requests
 from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -34,11 +35,19 @@ def run_rss_monitor():
         logger.error(f"RSS Monitor failed: {e}")
 
 # Default job: Run every hour
-scheduler.add_job(run_rss_monitor, CronTrigger.from_crontab('0 * * * *'), id='rss_monitor')
+# scheduler.add_job(run_rss_monitor, CronTrigger.from_crontab('0 * * * *'), id='rss_monitor')
 scheduler.start()
 
 class CronConfig(BaseModel):
     cron_expression: str
+    enabled: bool = False
+
+# 定义请求模型
+class EmbyConfigRequest(BaseModel):
+    host: str
+    api_key: str
+    tmdb_id: str = "30983"         # 默认柯南 ID
+    max_episode: int = 1191
 
 @app.get("/")
 async def read_root():
@@ -82,6 +91,78 @@ async def get_magnets():
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
+@app.post("/api/emby/missing")
+async def check_emby_missing(config: EmbyConfigRequest):
+    try:
+        headers = {"X-Emby-Token": config.api_key}
+        
+        # 1. 获取 Series ID (优先使用 TMDB ID)
+        search_params = {
+            "Recursive": "true",
+            "IncludeItemTypes": "Series"
+        }
+        
+        # 强制使用 TMDB ID 查询
+        if not config.tmdb_id:
+             return JSONResponse({"error": "必须提供 TMDB ID"}, status_code=400)
+             
+        search_params["AnyProviderIdEquals"] = f"tmdb.{config.tmdb_id}"
+
+        search_res = requests.get(
+            f"{config.host}/Items",
+            headers=headers,
+            params=search_params,
+            timeout=5
+        )
+        
+        items = search_res.json().get('Items', [])
+        if not items:
+            return JSONResponse({"error": f"未找到剧集 (TMDB: {config.tmdb_id})"}, status_code=404)
+        
+        series_id = items[0]['Id']
+        
+        # 2. 获取所有集数
+        ep_res = requests.get(
+            f"{config.host}/Items",
+            headers=headers,
+            params={
+                "ParentId": series_id,
+                "Recursive": "true",
+                "IncludeItemTypes": "Episode",
+                "Fields": "IndexNumber"
+            },
+            timeout=10
+        )
+        
+        existing = set()
+        for item in ep_res.json().get('Items', []):
+            if 'IndexNumber' in item:
+                existing.add(item['IndexNumber'])
+        
+        # 3. 计算缺失
+        full_set = set(range(1, config.max_episode + 1))
+        missing = sorted(list(full_set - existing))
+        
+        return {"missing_episodes": missing, "total_count": len(existing)}
+        
+    except Exception as e:
+        logger.error(f"Emby check failed: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.delete("/api/database")
+async def clear_database():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM magnets")
+        conn.commit()
+        conn.close()
+        logger.info("Database cleared by user request.")
+        return {"status": "success", "message": "数据库已清空"}
+    except Exception as e:
+        logger.error(f"Failed to clear database: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
 @app.post("/api/scrape/full")
 async def trigger_full_scrape(background_tasks: BackgroundTasks):
     def run_scraper():
@@ -99,12 +180,41 @@ async def trigger_full_scrape(background_tasks: BackgroundTasks):
 @app.post("/api/rss/config")
 async def configure_rss(config: CronConfig):
     try:
-        # Validate cron expression by creating a trigger
+        # Validate cron expression
+        if not config.cron_expression.strip():
+            return JSONResponse(content={"error": "Cron expression cannot be empty"}, status_code=400)
+
         trigger = CronTrigger.from_crontab(config.cron_expression)
-        scheduler.reschedule_job('rss_monitor', trigger=trigger)
-        return {"message": f"RSS Schedule updated to: {config.cron_expression}"}
+        
+        job_id = 'rss_monitor'
+        job_exists = scheduler.get_job(job_id)
+        
+        if config.enabled:
+            if job_exists:
+                scheduler.reschedule_job(job_id, trigger=trigger)
+                logger.info(f"Rescheduled RSS job: {config.cron_expression}")
+            else:
+                scheduler.add_job(run_rss_monitor, trigger, id=job_id)
+                logger.info(f"Added RSS job: {config.cron_expression}")
+            return {"message": f"RSS Monitor ENABLED with schedule: {config.cron_expression}"}
+        else:
+            if job_exists:
+                scheduler.remove_job(job_id)
+                logger.info("Removed RSS job")
+            return {"message": "RSS Monitor DISABLED"}
+            
+    except ValueError as e:
+        error_msg = str(e)
+        if "Wrong number of fields" in error_msg:
+            friendly_msg = "Cron 表达式格式错误：应包含 5 个字段 (分 时 日 月 周)，例如 '0 * * * *'"
+        else:
+            friendly_msg = f"Cron 表达式无效: {error_msg}"
+        
+        logger.error(f"RSS Config Error: {e}")
+        return JSONResponse(content={"error": friendly_msg}, status_code=400)
     except Exception as e:
-        return JSONResponse(content={"error": f"Invalid cron expression: {e}"}, status_code=400)
+        logger.error(f"RSS Config Error: {e}")
+        return JSONResponse(content={"error": f"配置错误: {e}"}, status_code=400)
 
 @app.get("/api/system/logs")
 async def get_logs():

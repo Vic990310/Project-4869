@@ -53,3 +53,8 @@ CREATE TABLE IF NOT EXISTS magnets (
 """
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+# Emby Configuration
+EMBY_HOST = "http://YOUR_NAS_IP:8096" # 请替换为实际地址
+EMBY_API_KEY = "YOUR_API_KEY"         # 请替换为实际 Key
+EMBY_SERIES_NAME = "名侦探柯南"       # 目标剧集名称

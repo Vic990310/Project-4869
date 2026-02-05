@@ -109,25 +109,6 @@ async def scrape():
         except Exception as e:
             logger.error(f"Load All error: {e}")
 
-        try:
-            trigger_sel = "[data-toggle='modal'], [data-target]"
-            total = await page.locator(trigger_sel).count()
-            for i in range(total):
-                btn = page.locator(trigger_sel).nth(i)
-                try:
-                    attr = await btn.get_attribute("data-target")
-                    if not attr:
-                        href = await btn.get_attribute("href")
-                        attr = href if href and href.startswith("#") else None
-                    await btn.click()
-                    if attr:
-                        await page.wait_for_selector(f"{attr}", timeout=3000)
-                    await asyncio.sleep(0.1)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
         # 3. Row Discovery & Iteration
         logger.info("Starting Row Discovery...")
         

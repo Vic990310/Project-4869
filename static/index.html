@@ -153,61 +153,91 @@
         html[data-theme="dark"] .el-drawer__title {
             color: var(--text-primary) !important;
         }
+        .priority-popover {
+            background: rgba(243, 244, 246, 0.98) !important;
+            border: 1px solid var(--glass-border) !important;
+            padding: 8px !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12) !important;
+            backdrop-filter: blur(10px) !important;
+        }
+        html[data-theme="dark"] .priority-popover {
+            background: rgba(15, 23, 42, 0.92) !important;
+        }
+        /* 修复 Cron 开关文字颜色适配 */
+        .rss-switch .el-switch__inner .is-text {
+            color: var(--text-primary);
+        }
+        .rss-switch.is-checked .el-switch__inner .is-text {
+            color: #fff;
+        }
     </style>
 </head>
 <body>
     <div id="app" class="h-screen flex overflow-hidden">
         <div class="bg-wallpaper"></div>
         
-        <aside class="w-72 flex flex-col border-r z-20 flex-shrink-0 transition-colors duration-300" 
+        <!-- Mobile Sidebar Backdrop -->
+        <div v-if="isSidebarOpen" 
+             class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden transition-opacity" 
+             @click="isSidebarOpen = false">
+        </div>
+
+        <aside class="fixed inset-y-0 left-0 z-50 w-72 flex flex-col border-r glass-panel transition-transform duration-300 lg:static lg:translate-x-0" 
+               :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
                style="background-color: var(--glass-bg); border-color: var(--glass-border); backdrop-filter: blur(20px);"> 
             
-            <div class="p-6 border-b transition-colors duration-300" style="border-color: var(--glass-border);"> 
+            <div class="h-16 flex items-center justify-between px-6 border-b transition-colors duration-300" style="border-color: var(--glass-border);"> 
                 <h1 class="text-xl font-bold flex items-center gap-2" style="color: var(--text-blue)"> 
                     <el-icon><Monitor /></el-icon> Project-4869 
                 </h1> 
+                <el-button class="lg:hidden" link @click="isSidebarOpen = false">
+                    <el-icon class="text-xl"><Close /></el-icon>
+                </el-button>
             </div> 
 
             <div class="p-5 flex-1 overflow-y-auto space-y-5"> 
                 
-                <div class="space-y-3"> 
-                    <h3 class="text-xs font-bold uppercase tracking-wider opacity-60" style="color: var(--text-secondary)">Emby 连接</h3> 
+                <div class="rounded-xl border p-4 space-y-3 bg-gray-50/50 dark:bg-gray-800/30" style="border-color: var(--glass-border);">
+                    <h3 class="text-xs font-medium opacity-60" style="color: var(--text-secondary)">Emby 连接</h3> 
                     
-                    <el-input v-model="embyConfig.host" placeholder="http://ip:8096" size="default"> 
-                        <template #prefix><el-icon><Link /></el-icon></template> 
-                    </el-input> 
-                    <el-input v-model="embyConfig.apiKey" placeholder="API Key" type="password" show-password size="default"> 
-                        <template #prefix><el-icon><Key /></el-icon></template> 
-                    </el-input> 
-                    <el-input v-model="embyConfig.tmdbId" placeholder="TMDB ID" size="default"> 
-                        <template #prefix><el-icon><PriceTag /></el-icon></template> 
-                    </el-input> 
+                    <div class="rounded-lg border px-2 py-1 bg-white/60 dark:bg-gray-900/40" style="border-color: var(--glass-border);">
+                        <el-input v-model="embyConfig.host" placeholder="http://ip:8096" size="default" class="no-border-input"> 
+                            <template #prefix><el-icon><Link /></el-icon></template> 
+                        </el-input> 
+                    </div>
+                    <div class="rounded-lg border px-2 py-1 bg-white/60 dark:bg-gray-900/40" style="border-color: var(--glass-border);">
+                        <el-input v-model="embyConfig.apiKey" placeholder="API Key" type="password" show-password size="default" class="no-border-input"> 
+                            <template #prefix><el-icon><Key /></el-icon></template> 
+                        </el-input> 
+                    </div>
+                    <div class="rounded-lg border px-2 py-1 bg-white/60 dark:bg-gray-900/40" style="border-color: var(--glass-border);">
+                        <el-input v-model="embyConfig.tmdbId" placeholder="TMDB ID" size="default" class="no-border-input"> 
+                            <template #prefix><el-icon><PriceTag /></el-icon></template> 
+                        </el-input> 
+                    </div>
                     
                     <el-button type="primary" class="w-full" @click="syncEmby" :loading="syncing" round> 
                         保存并同步 
                     </el-button> 
 
-                    <div v-if="lastSyncTime" class="p-3 rounded-lg text-xs border transition-colors" 
-                         style="background-color: var(--tag-info-bg); border-color: var(--glass-border);"> 
+                    <div v-if="lastSyncTime" class="p-3 rounded-lg text-xs border transition-colors bg-gray-50/50 dark:bg-gray-800/30" 
+                         style="border-color: var(--glass-border);"> 
                         <div class="flex justify-between items-center mb-1"> 
-                            <span class="opacity-70">媒体库总数</span> 
+                            <span class="text-xs font-medium opacity-60" style="color: var(--text-secondary)">媒体库总数</span> 
                             <span class="font-bold" style="color: var(--text-primary)">{{ embyTotalCount }}</span> 
                         </div> 
                         <div class="flex justify-between items-center"> 
-                            <span class="opacity-70">缺失集数</span> 
+                            <span class="text-xs font-medium opacity-60" style="color: var(--text-secondary)">缺失集数</span> 
                             <span class="font-bold text-orange-500">{{ embyMissingList.length }}</span> 
                         </div> 
                     </div> 
 
-                    <el-button @click="openPriorityDrawer" class="w-full" size="default" round plain style="border-style: dashed;">
-                        <el-icon class="mr-1"><Operation /></el-icon> 排序设置
-                    </el-button>
                 </div> 
 
                 <el-divider style="border-color: var(--glass-border); opacity: 0.6; margin: 12px 0;"></el-divider> 
                 
-                <div class="space-y-3"> 
-                    <h3 class="text-xs font-bold uppercase tracking-wider opacity-60" style="color: var(--text-secondary)">系统控制</h3> 
+                <div class="rounded-xl border p-4 space-y-3 bg-gray-50/50 dark:bg-gray-800/30" style="border-color: var(--glass-border);"> 
+                    <h3 class="text-xs font-medium opacity-60" style="color: var(--text-secondary)">系统控制</h3> 
                     
                     <div class="flex gap-2">
                         <el-button type="danger" plain class="flex-1" @click="triggerScrape" :loading="scraping" size="default" round>
@@ -223,14 +253,16 @@
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-2 p-2 rounded-lg border transition-colors" 
-                         style="background-color: var(--tag-info-bg); border-color: var(--glass-border);">
-                        <el-input v-model="cronExpression" size="small" placeholder="Cron" style="flex: 1;" class="no-border-input"></el-input>
+                    <div class="flex items-center gap-2">
+                        <div class="flex items-center rounded-lg overflow-hidden border bg-white/60 dark:bg-gray-900/40 flex-1" style="border-color: var(--glass-border);">
+                            <el-input v-model="cronExpression" size="small" placeholder="Cron 表达式" class="no-border-input flex-1" input-style="text-align: center"></el-input>
+                        </div>
                         <el-switch 
                             v-model="rssEnabled" 
-                            inline-prompt 
-                            active-text="ON" 
-                            inactive-text="OFF" 
+                            class="rss-switch"
+                            inline-prompt
+                            active-text="定时RSS获取" 
+                            inactive-text="定时RSS获取"
                             @change="updateCron" 
                             :loading="loadingCron" 
                             style="--el-switch-on-color: #13ce66" 
@@ -239,8 +271,8 @@
                 </div> 
             </div> 
 
-            <div class="h-48 p-3 flex flex-col border-t transition-colors duration-300" 
-                 style="background-color: rgba(17, 24, 39, 0.95); border-color: var(--glass-border);"> 
+            <div class="h-48 p-4 m-4 mt-2 flex flex-col rounded-xl border transition-colors duration-300 bg-gray-900/90" 
+                 style="border-color: var(--glass-border);"> 
                 <div class="flex justify-between text-xs text-gray-400 mb-2 px-1"> 
                     <span class="font-mono">SYSTEM LOGS</span> 
                     <el-icon class="cursor-pointer hover:text-white transition-colors" @click="fetchLogs"><RefreshRight /></el-icon> 
@@ -256,6 +288,10 @@
                     style="background-color: var(--header-bg); border-bottom: 1px solid var(--glass-border); backdrop-filter: blur(12px);">
                 
                 <div class="flex items-center gap-4 flex-1 min-w-0 mr-4">
+                    <el-button class="lg:hidden -ml-2 mr-2" circle text @click="isSidebarOpen = true">
+                        <el-icon class="text-xl"><Expand /></el-icon>
+                    </el-button>
+
                     <div class="text-sm text-gray-600 whitespace-nowrap flex-shrink-0 hidden sm:block">
                         <span style="color: var(--text-primary)">收录:</span>
                         <span class="font-bold text-lg mx-1" style="color: var(--text-blue)">{{ maxEpisode }}</span>
@@ -275,27 +311,75 @@
                     </el-input>
                 </div>
 
-                <div class="flex items-center gap-3 flex-shrink-0">
-                    <el-button @click="copyAllMagnets" round size="default">
-                        <el-icon class="mr-1"><CopyDocument /></el-icon> 复制所有磁链
+                <div class="flex items-center gap-1 sm:gap-3 flex-shrink-0 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full border bg-gray-100/50 dark:bg-gray-700/30" style="border-color: var(--glass-border);">
+                    <el-button @click="copyAllMagnets" round size="default" class="!px-2 sm:!px-4">
+                        <el-icon class="sm:mr-1"><CopyDocument /></el-icon> <span class="hidden sm:inline">复制所有磁链</span>
                     </el-button>
                     
-                    <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                    <el-popover placement="bottom" width="320" trigger="click" @show="openPriorityPopover" :teleported="false" :show-arrow="false" popper-class="priority-popover">
+                        <div class="rounded-xl border p-4 space-y-6 bg-gray-50/50 dark:bg-gray-800/30" style="border-color: var(--glass-border);">
+                            <div class="flex items-center justify-between p-3 rounded-lg border bg-gray-50/50 dark:bg-gray-800/30" style="border-color: var(--glass-border);">
+                                <span class="text-xs font-medium opacity-60" style="color: var(--text-secondary)">根据优先级设置筛选</span>
+                                <el-switch
+                                    v-model="smartFilterEnabled"
+                                    style="--el-switch-on-color: #8b5cf6"
+                                ></el-switch>
+                            </div>
+
+                            <div v-for="(label, key) in priorityLabels" :key="key">
+                                <h4 class="text-xs font-medium opacity-60 mb-2" style="color: var(--text-secondary)">
+                                    {{ label }}优先级
+                                    <span class="font-normal opacity-50">(从上到下优先级递减)</span>
+                                </h4>
+                                <div class="border rounded-lg overflow-hidden bg-white/60 dark:bg-gray-900/40" style="border-color: var(--glass-border)">
+                                    <template v-for="(item, index) in priorityConfig[key]" :key="item">
+                                        <div v-if="item !== 'Unknown'" 
+                                             class="flex items-center justify-between p-2 border-b last:border-0 transition-colors"
+                                             style="border-color: var(--glass-border)"
+                                             :class="{'bg-blue-50 dark:bg-blue-900/20': draggingState.category === key && draggingState.index === index}"
+                                             draggable="true"
+                                             @dragstart="onDragStart(key, index, $event)"
+                                             @dragover.prevent="onDragOver(key, index, $event)"
+                                             @drop="onDrop(key, index, $event)"
+                                             @dragend="onDragEnd">
+                                            <span class="text-xs font-mono">{{ item }}</span>
+                                            <div class="flex gap-1 cursor-move text-gray-400 hover:text-gray-600">
+                                                <el-icon><Rank /></el-icon>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        <template #reference>
+                            <el-button round size="default" plain class="!px-2 sm:!px-4">
+                                <el-icon class="sm:mr-1"><Operation /></el-icon> <span class="hidden sm:inline">排序设置</span>
+                            </el-button>
+                        </template>
+                    </el-popover>
+                    
+                    <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-0.5 sm:mx-1"></div>
 
                     <el-switch 
                         v-model="isEmbyMode" 
+                        class="hidden sm:inline-flex"
                         active-text="仅媒体库缺失" 
                         inactive-text="全部条目"
                         style="--el-switch-on-color: #f97316" 
                     ></el-switch>
+                    <el-switch 
+                        v-model="isEmbyMode" 
+                        class="sm:hidden"
+                        style="--el-switch-on-color: #f97316" 
+                    ></el-switch>
                     
-                    <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                    <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-0.5 sm:mx-1"></div>
                     
-                    <el-button round @click="toggleTheme" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-primary);">
-                        <el-icon class="mr-1" :size="16">
-                            <component :is="isDark ? Sunny : Moon"></component>
+                    <el-button round @click="toggleTheme" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-primary);" class="!px-2 sm:!px-4">
+                        <el-icon class="sm:mr-1" :size="16">
+                            <component :is="isDark ? 'Sunny' : 'Moon'"></component>
                         </el-icon>
-                        切换主题
+                        <span class="hidden sm:inline">切换主题</span>
                     </el-button>
                 </div>
             </header>
@@ -311,7 +395,7 @@
                                 <div class="flex items-center gap-3 overflow-hidden min-w-0">
                                     <span class="text-xl font-black whitespace-nowrap flex-shrink-0" style="color: var(--text-blue)">第 {{ ep.num }} 集</span>
                                     
-                                    <div class="flex items-baseline gap-3 overflow-hidden min-w-0">
+                                    <div class="hidden sm:flex items-baseline gap-3 overflow-hidden min-w-0">
                                         <span class="text-base font-bold truncate" style="color: var(--text-primary)" :title="ep.data[0].episode_title">
                                             {{ ep.data[0].episode_title || cleanTitle(ep.data[0].raw_title, ep.num) }}
                                         </span>
@@ -379,58 +463,17 @@
             </div>
         </main>
 
-        <!-- 优先级设置抽屉 -->
-        <el-drawer v-model="showPriorityDrawer" title="智能精选排序设置" direction="rtl" size="320px">
-            <div class="space-y-6">
-                
-                <div class="flex items-center justify-between p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800">
-                    <span class="text-sm font-bold text-purple-700 dark:text-purple-300">根据优先级设置筛选</span>
-                    <el-switch
-                        v-model="smartFilterEnabled"
-                        style="--el-switch-on-color: #8b5cf6"
-                    ></el-switch>
-                </div>
-
-                <div v-for="(label, key) in priorityLabels" :key="key">
-                    <h4 class="text-sm font-bold mb-2 flex items-center gap-2" style="color: var(--text-primary)">
-                        {{ label }}优先级
-                        <span class="text-xs font-normal opacity-50">(从上到下优先级递减)</span>
-                    </h4>
-                    <div class="border rounded-lg overflow-hidden" style="border-color: var(--card-border)">
-                        <template v-for="(item, index) in priorityConfig[key]" :key="item">
-                            <div v-if="item !== 'Unknown'" 
-                                 class="flex items-center justify-between p-2 border-b last:border-0 bg-white dark:bg-gray-800 transition-colors"
-                                 style="border-color: var(--card-border)"
-                                 :class="{'bg-blue-50 dark:bg-blue-900/20': draggingState.category === key && draggingState.index === index}"
-                                 draggable="true"
-                                 @dragstart="onDragStart(key, index, $event)"
-                                 @dragover.prevent="onDragOver(key, index, $event)"
-                                 @drop="onDrop(key, index, $event)"
-                                 @dragend="onDragEnd">
-                                <span class="text-xs font-mono">{{ item }}</span>
-                                <div class="flex gap-1 cursor-move text-gray-400 hover:text-gray-600">
-                                    <el-icon><Rank /></el-icon>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </div>
-        </el-drawer>
     </div>
 
     <script>
         const { createApp, ref, computed, onMounted, watch } = Vue;
-        const { Search, Refresh, Link, Key, Film, RefreshRight, Moon, Sunny, PriceTag, CopyDocument, Operation, ArrowUp, ArrowDown, Paperclip, Rank } = ElementPlusIconsVue;
         const { ElMessage, ElNotification } = ElementPlus;
 
         const app = createApp({
-            components: {
-                Search, Refresh, Link, Key, Film, RefreshRight, Moon, Sunny, PriceTag, CopyDocument, Operation, ArrowUp, ArrowDown, Paperclip, Rank
-            },
             setup() {
                 // 主题相关
                 const isDark = ref(false);
+                const isSidebarOpen = ref(false);
                 const toggleTheme = () => {
                     isDark.value = !isDark.value;
                     updateTheme();
@@ -489,7 +532,6 @@
 
                 // --- 智能精选与排序逻辑 ---
                 const smartFilterEnabled = ref(false);
-                const showPriorityDrawer = ref(false);
                 
                 // 默认优先级配置
                 const defaultPriority = {
@@ -523,10 +565,7 @@
                     localStorage.setItem('project4869_priority_config', JSON.stringify(newVal));
                 }, { deep: true });
 
-                const openPriorityDrawer = async () => {
-                    // 先显示抽屉，让用户感知到反馈
-                    showPriorityDrawer.value = true;
-                    
+                const openPriorityPopover = async () => {
                     try {
                         const res = await fetch('/api/options');
                         const json = await res.json();
@@ -962,26 +1001,10 @@
 
                 return {
                     isDark,
+                    isSidebarOpen,
                     toggleTheme,
-                    Sunny: ElementPlusIconsVue.Sunny,
-                    Moon: ElementPlusIconsVue.Moon,
-                    Monitor: ElementPlusIconsVue.Monitor,
-                    Refresh: ElementPlusIconsVue.Refresh,
-                    Document: ElementPlusIconsVue.Document,
-                    Paperclip: ElementPlusIconsVue.Paperclip,
-                    Link: ElementPlusIconsVue.Link,
-                    Key: ElementPlusIconsVue.Key,
-                    Film: ElementPlusIconsVue.Film,
-                    PriceTag: ElementPlusIconsVue.PriceTag,
-                    RefreshRight: ElementPlusIconsVue.RefreshRight,
-                    Operation: ElementPlusIconsVue.Operation,
-                    CopyDocument: ElementPlusIconsVue.CopyDocument,
-                    Sort: ElementPlusIconsVue.Sort,
-                    ArrowUp: ElementPlusIconsVue.ArrowUp,
-                    ArrowDown: ElementPlusIconsVue.ArrowDown,
                     smartFilterEnabled,
-                    showPriorityDrawer,
-                    openPriorityDrawer,
+                    openPriorityPopover,
                     priorityConfig,
                     priorityLabels,
                     movePriority,

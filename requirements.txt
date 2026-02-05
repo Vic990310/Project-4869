@@ -1,4 +1,4 @@
-playwright
+playwright==1.41.0
 requests
 feedparser
 pytz

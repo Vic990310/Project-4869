@@ -99,6 +99,13 @@
             background-color: var(--header-bg);
             border: 1px solid var(--glass-border);
         }
+        
+        /* 移除输入框边框，用于融合控件 */
+        .no-border-input .el-input__wrapper {
+            box-shadow: none !important;
+            background-color: transparent !important;
+            padding-left: 0;
+        }
         /* 资源卡片 */
         .resource-card {
             background-color: var(--card-bg);
@@ -152,72 +159,129 @@
     <div id="app" class="h-screen flex overflow-hidden">
         <div class="bg-wallpaper"></div>
         
-        <aside class="w-72 flex flex-col border-r border-white/20 bg-white/80 backdrop-blur-xl shadow-xl z-20 flex-shrink-0">
-            <div class="p-6 border-b border-gray-100">
-                <h1 class="text-xl font-bold text-blue-900 flex items-center gap-2">
-                    <el-icon><Monitor /></el-icon> Project-4869
-                </h1>
-            </div>
+        <aside class="w-72 flex flex-col border-r z-20 flex-shrink-0 transition-colors duration-300" 
+               style="background-color: var(--glass-bg); border-color: var(--glass-border); backdrop-filter: blur(20px);"> 
+            
+            <div class="p-6 border-b transition-colors duration-300" style="border-color: var(--glass-border);"> 
+                <h1 class="text-xl font-bold flex items-center gap-2" style="color: var(--text-blue)"> 
+                    <el-icon><Monitor /></el-icon> Project-4869 
+                </h1> 
+            </div> 
 
-            <div class="p-4 flex-1 overflow-y-auto space-y-4">
-                <h3 class="text-xs font-bold text-gray-400 uppercase">Emby 连接</h3>
-                <el-input v-model="embyConfig.host" placeholder="http://ip:8096" size="small">
-                    <template #prefix><el-icon><Link /></el-icon></template>
-                </el-input>
-                <el-input v-model="embyConfig.apiKey" placeholder="API Key" type="password" show-password size="small">
-                    <template #prefix><el-icon><Key /></el-icon></template>
-                </el-input>
-                <el-input v-model="embyConfig.tmdbId" placeholder="TMDB ID (默认30983)" size="small">
-                    <template #prefix><el-icon><PriceTag /></el-icon></template>
-                </el-input>
-                <el-button type="primary" class="w-full" @click="syncEmby" :loading="syncing">保存并同步</el-button>
+            <div class="p-5 flex-1 overflow-y-auto space-y-5"> 
                 
-                <div v-if="lastSyncTime" class="mt-2 p-2 rounded text-xs border" style="background-color: var(--tag-info-bg); border-color: var(--glass-border);">
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="text-gray-500">媒体库共获取</span>
-                        <span class="font-bold" style="color: var(--text-blue)">{{ embyTotalCount }} 集</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-500">当前缺失</span>
-                        <span class="font-bold text-orange-500">{{ embyMissingList.length }} 集</span>
-                    </div>
-                </div>
+                <div class="space-y-3"> 
+                    <h3 class="text-xs font-bold uppercase tracking-wider opacity-60" style="color: var(--text-secondary)">Emby 连接</h3> 
+                    
+                    <el-input v-model="embyConfig.host" placeholder="http://ip:8096" size="default"> 
+                        <template #prefix><el-icon><Link /></el-icon></template> 
+                    </el-input> 
+                    <el-input v-model="embyConfig.apiKey" placeholder="API Key" type="password" show-password size="default"> 
+                        <template #prefix><el-icon><Key /></el-icon></template> 
+                    </el-input> 
+                    <el-input v-model="embyConfig.tmdbId" placeholder="TMDB ID" size="default"> 
+                        <template #prefix><el-icon><PriceTag /></el-icon></template> 
+                    </el-input> 
+                    
+                    <el-button type="primary" class="w-full" @click="syncEmby" :loading="syncing" round> 
+                        保存并同步 
+                    </el-button> 
 
-                <el-divider></el-divider>
+                    <div v-if="lastSyncTime" class="p-3 rounded-lg text-xs border transition-colors" 
+                         style="background-color: var(--tag-info-bg); border-color: var(--glass-border);"> 
+                        <div class="flex justify-between items-center mb-1"> 
+                            <span class="opacity-70">媒体库总数</span> 
+                            <span class="font-bold" style="color: var(--text-primary)">{{ embyTotalCount }}</span> 
+                        </div> 
+                        <div class="flex justify-between items-center"> 
+                            <span class="opacity-70">缺失集数</span> 
+                            <span class="font-bold text-orange-500">{{ embyMissingList.length }}</span> 
+                        </div> 
+                    </div> 
+                </div> 
+
+                <el-divider style="border-color: var(--glass-border); opacity: 0.6; margin: 12px 0;"></el-divider> 
                 
-                <h3 class="text-xs font-bold text-gray-400 uppercase">系统控制</h3>
-                <el-button type="danger" plain class="w-full" @click="triggerScrape" :loading="scraping" size="small">全量爬虫抓取</el-button>
-                <el-popconfirm title="确定要清空所有数据吗？此操作不可恢复。" @confirm="clearDatabase">
-                    <template #reference>
-                        <el-button type="warning" plain class="w-full mt-2" size="small">清空数据库</el-button>
-                    </template>
-                </el-popconfirm>
-                <div class="flex gap-2 pt-2 items-center">
-                    <el-switch v-model="rssEnabled" active-text="RSS 自动更新" @change="updateCron" :loading="loadingCron" style="--el-switch-on-color: #13ce66"></el-switch>
-                    <el-input v-model="cronExpression" size="small" placeholder="Cron 表达式" style="width: 120px"></el-input>
-                </div>
-            </div>
+                <div class="space-y-3"> 
+                    <h3 class="text-xs font-bold uppercase tracking-wider opacity-60" style="color: var(--text-secondary)">系统控制</h3> 
+                    
+                    <div class="flex gap-2">
+                        <el-button type="danger" plain class="flex-1" @click="triggerScrape" :loading="scraping" size="default" round>
+                            全量抓取
+                        </el-button>
+                        
+                        <div class="flex-1">
+                            <el-popconfirm title="确定要清空所有数据吗？" @confirm="clearDatabase" width="200">
+                                <template #reference>
+                                    <el-button type="warning" plain class="w-full" size="default" round>清空数据库</el-button>
+                                </template>
+                            </el-popconfirm>
+                        </div>
+                    </div>
 
-            <div class="h-48 bg-gray-900 p-3 flex flex-col">
-                <div class="flex justify-between text-xs text-gray-400 mb-2">
-                    <span>Logs</span>
-                    <el-icon class="cursor-pointer" @click="fetchLogs"><RefreshRight /></el-icon>
-                </div>
-                <div class="flex-1 overflow-auto font-mono text-xs text-green-400 whitespace-pre-wrap break-all leading-tight">
-                    {{ logContent }}
-                </div>
-            </div>
+                    <div class="flex items-center gap-2 p-2 rounded-lg border transition-colors" 
+                         style="background-color: var(--tag-info-bg); border-color: var(--glass-border);">
+                        <el-input v-model="cronExpression" size="small" placeholder="Cron" style="flex: 1;" class="no-border-input"></el-input>
+                        <el-switch 
+                            v-model="rssEnabled" 
+                            inline-prompt 
+                            active-text="ON" 
+                            inactive-text="OFF" 
+                            @change="updateCron" 
+                            :loading="loadingCron" 
+                            style="--el-switch-on-color: #13ce66" 
+                        ></el-switch>
+                    </div>
+                </div> 
+            </div> 
+
+            <div class="h-48 p-3 flex flex-col border-t transition-colors duration-300" 
+                 style="background-color: rgba(17, 24, 39, 0.95); border-color: var(--glass-border);"> 
+                <div class="flex justify-between text-xs text-gray-400 mb-2 px-1"> 
+                    <span class="font-mono">SYSTEM LOGS</span> 
+                    <el-icon class="cursor-pointer hover:text-white transition-colors" @click="fetchLogs"><RefreshRight /></el-icon> 
+                </div> 
+                <div class="flex-1 overflow-auto font-mono text-xs text-green-400 whitespace-pre-wrap break-all leading-relaxed p-1 scrollbar-thin"> 
+                    {{ logContent }} 
+                </div> 
+            </div> 
         </aside>
 
         <main class="flex-1 flex flex-col min-w-0 glass-container">
-            <header class="bg-white/60 backdrop-blur-md border-b border-gray-100 px-6 py-3 flex justify-between items-center">
-                <div class="text-sm text-gray-600">
-                    数据库收录: <span class="font-bold text-blue-600 text-lg">{{ maxEpisode }}</span> 集
-                    <span v-if="lastSyncTime" class="ml-4 text-xs text-gray-500">
-                        (Emby 缺失: <span class="text-orange-500 font-bold">{{ embyMissingList.length }}</span> 集)
-                    </span>
+            <header class="px-6 py-3 flex justify-between items-center transition-colors duration-300"
+                    style="background-color: var(--header-bg); border-bottom: 1px solid var(--glass-border); backdrop-filter: blur(10px);">
+                <div class="flex items-center gap-4 text-sm text-gray-600">
+                    <div>
+                        <span style="color: var(--text-primary)">数据库收录: </span>
+                        <span class="font-bold text-lg" style="color: var(--text-blue)">{{ maxEpisode }}</span> 
+                        <span style="color: var(--text-primary)">集</span>
+                        <span v-if="lastSyncTime" class="ml-2 text-xs opacity-80" style="color: var(--text-secondary)">
+                            (Emby 缺失: <span class="text-orange-500 font-bold">{{ embyMissingList.length }}</span>)
+                        </span>
+                    </div>
+                    <el-input 
+                        v-model="searchQuery" 
+                        placeholder="搜索 标题/文件名..." 
+                        style="width: 200px"
+                        clearable
+                        size="default"
+                    >
+                        <template #prefix><el-icon><Search /></el-icon></template>
+                    </el-input>
                 </div>
-                <el-switch v-model="isEmbyMode" active-text="仅看 Emby 缺失" inline-prompt style="--el-switch-on-color: #f97316" />
+
+                <div class="flex items-center gap-4">
+                    <el-switch v-model="isEmbyMode" active-text="仅看 Emby 缺失" inline-prompt style="--el-switch-on-color: #f97316" />
+                    
+                    <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+                    
+                    <el-button size="default" @click="toggleTheme" title="切换主题">
+                        <template #icon>
+                            <el-icon><Moon v-if="isDark" /><Sunny v-else /></el-icon>
+                        </template>
+                        <span class="ml-1">{{ isDark ? 'Dark' : 'Light' }}</span>
+                    </el-button>
+                </div>
             </header>
 
             <div class="flex-1 overflow-y-auto p-6 scroll-smooth">
@@ -362,6 +426,7 @@
                 const showLogs = ref(false);
                 const logContent = ref("正在加载日志...");
                 const filterType = ref("all");
+                const searchQuery = ref(""); // 新增搜索变量
                 const isEmbyMode = ref(false);
                 const embyMissingList = ref([]);
                 const embyTotalCount = ref(0);
@@ -464,13 +529,33 @@
                 const filteredEpisodes = computed(() => {
                     const list = [];
                     const start = maxEpisode.value > 0 ? maxEpisode.value : 1;
+                    
+                    // 预处理搜索关键字
+                    let keywords = [];
+                    if (searchQuery.value) {
+                        keywords = searchQuery.value.toLowerCase().split(/\s+/).filter(k => k);
+                    }
+
                     for (let i = start; i >= 1; i--) {
                         const data = groupedData.value[i] || [];
                         
-                        // Emby 模式下，只显示缺失列表里的集数
+                        // 1. Emby 模式筛选
                         if (isEmbyMode.value && lastSyncTime.value && !embyMissingList.value.includes(i)) continue;
                         
-                        // 原有的筛选逻辑
+                        // 2. 搜索关键字筛选
+                        if (keywords.length > 0) {
+                            // 构建可搜索文本：集数 + 纯标题 + 所有文件名
+                            // 注意：cleanTitle 可能依赖 data[0]，如果 data 为空需要处理
+                            const epTitle = data.length > 0 ? (data[0].episode_title || cleanTitle(data[0].raw_title, i)) : "";
+                            const fileNames = data.map(d => d.raw_title).join(" ");
+                            const searchableText = `${i} ${epTitle} ${fileNames}`.toLowerCase();
+                            
+                            // 必须包含所有关键字
+                            const match = keywords.every(kw => searchableText.includes(kw));
+                            if (!match) continue;
+                        }
+
+                        // 3. 原有的筛选逻辑 (虽无 UI 触发，保留逻辑)
                         const exists = data.length > 0;
                         if (filterType.value === 'existing' && !exists) continue;
                         if (filterType.value === 'missing' && exists) continue;
@@ -617,7 +702,8 @@
                     filteredTotal,
                     currentPage,
                     pageSize,
-                    scrollToTop
+                    scrollToTop,
+                    searchQuery // 导出 searchQuery
                 };
             }
         });

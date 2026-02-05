@@ -248,21 +248,22 @@
         </aside>
 
         <main class="flex-1 flex flex-col min-w-0 glass-container">
-            <header class="px-6 py-3 flex justify-between items-center transition-colors duration-300"
-                    style="background-color: var(--header-bg); border-bottom: 1px solid var(--glass-border); backdrop-filter: blur(10px);">
-                <div class="flex items-center gap-4 text-sm text-gray-600">
-                    <div>
-                        <span style="color: var(--text-primary)">数据库收录: </span>
-                        <span class="font-bold text-lg" style="color: var(--text-blue)">{{ maxEpisode }}</span> 
-                        <span style="color: var(--text-primary)">集</span>
-                        <span v-if="lastSyncTime" class="ml-2 text-xs opacity-80" style="color: var(--text-secondary)">
-                            (Emby 缺失: <span class="text-orange-500 font-bold">{{ embyMissingList.length }}</span>)
+            <header class="px-6 py-3 flex justify-between items-center transition-all duration-300 z-50 sticky top-0"
+                    style="background-color: var(--header-bg); border-bottom: 1px solid var(--glass-border); backdrop-filter: blur(12px);">
+                
+                <div class="flex items-center gap-4 flex-1 min-w-0 mr-4">
+                    <div class="text-sm text-gray-600 whitespace-nowrap flex-shrink-0 hidden sm:block">
+                        <span style="color: var(--text-primary)">收录:</span>
+                        <span class="font-bold text-lg mx-1" style="color: var(--text-blue)">{{ maxEpisode }}</span>
+                        <span v-if="lastSyncTime" class="text-xs opacity-80" style="color: var(--text-secondary)">
+                            (缺 <span class="text-orange-500 font-bold">{{ embyMissingList.length }}</span>)
                         </span>
                     </div>
+                    
                     <el-input 
                         v-model="searchQuery" 
-                        placeholder="搜索 标题/文件名..." 
-                        style="width: 200px"
+                        placeholder="搜索标题 / 文件名..." 
+                        class="w-full max-w-xs"
                         clearable
                         size="default"
                     >
@@ -270,16 +271,20 @@
                     </el-input>
                 </div>
 
-                <div class="flex items-center gap-4">
-                    <el-switch v-model="isEmbyMode" active-text="仅看 Emby 缺失" inline-prompt style="--el-switch-on-color: #f97316" />
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <el-switch 
+                        v-model="isEmbyMode" 
+                        active-text="仅缺失" 
+                        inline-prompt 
+                        style="--el-switch-on-color: #f97316" 
+                    ></el-switch> <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
                     
-                    <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
-                    
-                    <el-button size="default" @click="toggleTheme" title="切换主题">
+                    <el-button circle @click="toggleTheme" title="切换主题" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-primary);">
                         <template #icon>
-                            <el-icon><Moon v-if="isDark" /><Sunny v-else /></el-icon>
+                            <el-icon :size="16">
+                                <component :is="isDark ? Sunny : Moon"></component>
+                            </el-icon>
                         </template>
-                        <span class="ml-1">{{ isDark ? 'Dark' : 'Light' }}</span>
                     </el-button>
                 </div>
             </header>

@@ -40,7 +40,7 @@ SBSUB_RSS_URL = "https://www.sbsub.com/data/rss/"
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS magnets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    magnet_link TEXT UNIQUE,
+    magnet_link TEXT,
     episode TEXT,
     episode_title TEXT,
     resolution TEXT,
@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS magnets (
     subtitle TEXT,
     source_type TEXT,
     raw_title TEXT,
-    publish_date TEXT
+    publish_date TEXT,
+    UNIQUE(magnet_link, episode)
 );
 """
 

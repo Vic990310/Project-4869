@@ -198,6 +198,10 @@
                             <span class="font-bold text-orange-500">{{ embyMissingList.length }}</span> 
                         </div> 
                     </div> 
+
+                    <el-button @click="openPriorityDrawer" class="w-full" size="default" round plain style="border-style: dashed;">
+                        <el-icon class="mr-1"><Operation /></el-icon> 排序设置
+                    </el-button>
                 </div> 
 
                 <el-divider style="border-color: var(--glass-border); opacity: 0.6; margin: 12px 0;"></el-divider> 
@@ -272,19 +276,26 @@
                 </div>
 
                 <div class="flex items-center gap-3 flex-shrink-0">
+                    <el-button @click="copyAllMagnets" round size="default">
+                        <el-icon class="mr-1"><CopyDocument /></el-icon> 复制所有磁链
+                    </el-button>
+                    
+                    <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+
                     <el-switch 
                         v-model="isEmbyMode" 
-                        active-text="仅缺失" 
-                        inline-prompt 
+                        active-text="仅媒体库缺失" 
+                        inactive-text="全部条目"
                         style="--el-switch-on-color: #f97316" 
-                    ></el-switch> <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                    ></el-switch>
                     
-                    <el-button circle @click="toggleTheme" title="切换主题" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-primary);">
-                        <template #icon>
-                            <el-icon :size="16">
-                                <component :is="isDark ? Sunny : Moon"></component>
-                            </el-icon>
-                        </template>
+                    <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                    
+                    <el-button round @click="toggleTheme" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-primary);">
+                        <el-icon class="mr-1" :size="16">
+                            <component :is="isDark ? Sunny : Moon"></component>
+                        </el-icon>
+                        切换主题
                     </el-button>
                 </div>
             </header>
@@ -367,16 +378,55 @@
                 </div>
             </div>
         </main>
+
+        <!-- 优先级设置抽屉 -->
+        <el-drawer v-model="showPriorityDrawer" title="智能精选排序设置" direction="rtl" size="320px">
+            <div class="space-y-6">
+                
+                <div class="flex items-center justify-between p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800">
+                    <span class="text-sm font-bold text-purple-700 dark:text-purple-300">根据优先级设置筛选</span>
+                    <el-switch
+                        v-model="smartFilterEnabled"
+                        style="--el-switch-on-color: #8b5cf6"
+                    ></el-switch>
+                </div>
+
+                <div v-for="(label, key) in priorityLabels" :key="key">
+                    <h4 class="text-sm font-bold mb-2 flex items-center gap-2" style="color: var(--text-primary)">
+                        {{ label }}优先级
+                        <span class="text-xs font-normal opacity-50">(从上到下优先级递减)</span>
+                    </h4>
+                    <div class="border rounded-lg overflow-hidden" style="border-color: var(--card-border)">
+                        <template v-for="(item, index) in priorityConfig[key]" :key="item">
+                            <div v-if="item !== 'Unknown'" 
+                                 class="flex items-center justify-between p-2 border-b last:border-0 bg-white dark:bg-gray-800 transition-colors"
+                                 style="border-color: var(--card-border)"
+                                 :class="{'bg-blue-50 dark:bg-blue-900/20': draggingState.category === key && draggingState.index === index}"
+                                 draggable="true"
+                                 @dragstart="onDragStart(key, index, $event)"
+                                 @dragover.prevent="onDragOver(key, index, $event)"
+                                 @drop="onDrop(key, index, $event)"
+                                 @dragend="onDragEnd">
+                                <span class="text-xs font-mono">{{ item }}</span>
+                                <div class="flex gap-1 cursor-move text-gray-400 hover:text-gray-600">
+                                    <el-icon><Rank /></el-icon>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </el-drawer>
     </div>
 
     <script>
         const { createApp, ref, computed, onMounted, watch } = Vue;
-        const { Search, Refresh, Link, Key, Film, RefreshRight, Moon, Sunny, PriceTag } = ElementPlusIconsVue;
+        const { Search, Refresh, Link, Key, Film, RefreshRight, Moon, Sunny, PriceTag, CopyDocument, Operation, ArrowUp, ArrowDown, Paperclip, Rank } = ElementPlusIconsVue;
         const { ElMessage, ElNotification } = ElementPlus;
 
         const app = createApp({
             components: {
-                Search, Refresh, Link, Key, Film, RefreshRight, Moon, Sunny, PriceTag
+                Search, Refresh, Link, Key, Film, RefreshRight, Moon, Sunny, PriceTag, CopyDocument, Operation, ArrowUp, ArrowDown, Paperclip, Rank
             },
             setup() {
                 // 主题相关
@@ -437,6 +487,167 @@
                 const embyTotalCount = ref(0);
                 const lastSyncTime = ref("");
 
+                // --- 智能精选与排序逻辑 ---
+                const smartFilterEnabled = ref(false);
+                const showPriorityDrawer = ref(false);
+                
+                // 默认优先级配置
+                const defaultPriority = {
+                    resolution: ['1080P', '1080p', '720P', '720p', '4K', '2160P', 'Unknown'],
+                    subtitle: ['简日双语', '简日', '繁日', 'CHS_JP', 'Unknown'],
+                    source_type: ['WEBRIP', 'WebRip', 'BDRIP', 'BDRip', 'HDTV', 'Unknown'],
+                    container: ['MP4', 'mp4', 'MKV', 'mkv', 'Unknown']
+                };
+                
+                const priorityConfig = ref(JSON.parse(JSON.stringify(defaultPriority)));
+                
+                const priorityLabels = {
+                    resolution: '分辨率',
+                    subtitle: '字幕',
+                    source_type: '来源',
+                    container: '容器'
+                };
+
+                // 加载保存的配置
+                onMounted(() => {
+                    const savedPriority = localStorage.getItem('project4869_priority_config');
+                    if (savedPriority) {
+                        try {
+                            const parsed = JSON.parse(savedPriority);
+                            priorityConfig.value = { ...defaultPriority, ...parsed };
+                        } catch(e) { console.error(e); }
+                    }
+                });
+
+                watch(priorityConfig, (newVal) => {
+                    localStorage.setItem('project4869_priority_config', JSON.stringify(newVal));
+                }, { deep: true });
+
+                const openPriorityDrawer = async () => {
+                    // 先显示抽屉，让用户感知到反馈
+                    showPriorityDrawer.value = true;
+                    
+                    try {
+                        const res = await fetch('/api/options');
+                        const json = await res.json();
+                        
+                        if (json.error) {
+                            ElMessage.error('获取选项失败: ' + json.error);
+                            return;
+                        }
+
+                        // 合并逻辑：保留用户已排序的顺序，追加新选项
+                        const newConfig = { ...priorityConfig.value };
+                        
+                        for (const key in json) {
+                            const dbOptions = json[key]; // 数据库返回的最新选项列表
+                            const currentList = newConfig[key] || [];
+                            
+                            // 1. 过滤掉 currentList 中已经不存在于 dbOptions 的项 (除了 'Unknown')
+                            // 但是用户可能希望保留之前的配置即使暂时没有数据？
+                            // 策略：保留所有当前配置中的项，只要它们不是完全无效的。
+                            // 但为了响应“实时获取”，应该以 dbOptions 为准，加上 Unknown。
+                            
+                            // 更好的策略：
+                            // 1. 提取 currentList 中所有在 dbOptions + ['Unknown'] 中的项，保持顺序。
+                            // 2. 将 dbOptions 中未出现在 currentList 的项追加到后面。
+                            
+                            const validSet = new Set([...dbOptions, 'Unknown']);
+                            
+                            // 步骤 1: 保留已有的且有效的
+                            const mergedList = currentList.filter(item => validSet.has(item));
+                            
+                            // 步骤 2: 追加新的
+                            dbOptions.forEach(opt => {
+                                if (!mergedList.includes(opt)) {
+                                    mergedList.push(opt);
+                                }
+                            });
+                            
+                            // 确保 Unknown 存在
+                            if (!mergedList.includes('Unknown')) {
+                                mergedList.push('Unknown');
+                            }
+                            
+                            newConfig[key] = mergedList;
+                        }
+                        
+                        priorityConfig.value = newConfig;
+                        
+                    } catch (e) {
+                        console.error(e);
+                        ElMessage.error('无法获取最新选项');
+                    }
+                };
+
+                const movePriority = (category, index, direction) => {
+                    const arr = priorityConfig.value[category];
+                    if (direction === -1 && index > 0) {
+                        [arr[index], arr[index - 1]] = [arr[index - 1], arr[index]];
+                    } else if (direction === 1 && index < arr.length - 1) {
+                        [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
+                    }
+                };
+
+                // --- Drag and Drop Logic ---
+                const draggingState = ref({ category: null, index: null });
+
+                const onDragStart = (category, index, event) => {
+                    draggingState.value = { category, index };
+                    event.dataTransfer.effectAllowed = 'move';
+                    // Optional: set drag image or data if needed
+                };
+
+                const onDragOver = (category, index, event) => {
+                    // Only allow dropping if same category
+                    if (draggingState.value.category === category) {
+                         // Default is usually 'copy', we want 'move' visual
+                         event.dataTransfer.dropEffect = 'move';
+                    }
+                };
+
+                const onDrop = (category, index, event) => {
+                    const srcState = draggingState.value;
+                    
+                    // Validation: must be same category and valid indices
+                    if (srcState.category !== category || srcState.index === null) return;
+                    if (srcState.index === index) return; // Dropped on self
+
+                    const list = priorityConfig.value[category];
+                    const srcIndex = srcState.index;
+                    const destIndex = index;
+
+                    // Remove item from source
+                    const [movedItem] = list.splice(srcIndex, 1);
+                    // Insert at destination
+                    list.splice(destIndex, 0, movedItem);
+                    
+                    // Reset state
+                    onDragEnd();
+                };
+
+                const onDragEnd = () => {
+                    draggingState.value = { category: null, index: null };
+                };
+                
+                const compareResources = (a, b) => {
+                    const categories = ['resolution', 'subtitle', 'source_type', 'container'];
+                    for (const cat of categories) {
+                        const list = priorityConfig.value[cat];
+                        const valA = a[cat] || 'Unknown';
+                        const valB = b[cat] || 'Unknown';
+                        
+                        let idxA = list.findIndex(item => valA.includes(item) || item.includes(valA));
+                        let idxB = list.findIndex(item => valB.includes(item) || item.includes(valB));
+                        
+                        if (idxA === -1) idxA = 999;
+                        if (idxB === -1) idxB = 999;
+                        
+                        if (idxA !== idxB) return idxA - idxB;
+                    }
+                    return 0;
+                };
+                
                 // Emby 配置
                 const embyConfig = ref({ host: '', apiKey: '', tmdbId: '30983' });
                 const syncing = ref(false);
@@ -523,11 +734,24 @@
                     try {
                         const res = await fetch('/api/magnets');
                         const json = await res.json();
-                        magnets.value = json.data;
+                        
+                        if (json.error) {
+                            console.error("API Error:", json.error);
+                            // 如果是表不存在的错误，可能还没初始化，不弹窗打扰用户，只是保持空状态
+                            if (!json.error.includes('no such table')) {
+                                ElMessage.error(json.error);
+                            }
+                            magnets.value = [];
+                            groupedData.value = {};
+                            return;
+                        }
+
+                        magnets.value = json.data || [];
                         maxEpisode.value = json.max_episode || 0;
-                        groupedData.value = json.grouped_by_episode;
+                        groupedData.value = json.grouped_by_episode || {};
                     } catch (e) {
                         ElMessage.error('无法连接到服务器');
+                        console.error(e);
                     }
                 };
 
@@ -549,11 +773,19 @@
                         
                         // 2. 搜索关键字筛选
                         if (keywords.length > 0) {
-                            // 构建可搜索文本：集数 + 纯标题 + 所有文件名
+                            // 构建可搜索文本：集数 + 纯标题 + 所有文件名 + 所有标签信息
                             // 注意：cleanTitle 可能依赖 data[0]，如果 data 为空需要处理
                             const epTitle = data.length > 0 ? (data[0].episode_title || cleanTitle(data[0].raw_title, i)) : "";
                             const fileNames = data.map(d => d.raw_title).join(" ");
-                            const searchableText = `${i} ${epTitle} ${fileNames}`.toLowerCase();
+                            
+                            // 显式添加标签信息 (分辨率、字幕、来源、容器)
+                            const tagInfo = data.map(d => {
+                                return [d.resolution, d.subtitle, d.source_type, d.container]
+                                    .filter(t => t && t !== 'Unknown') // 过滤掉无效值
+                                    .join(" ");
+                            }).join(" ");
+
+                            const searchableText = `${i} ${epTitle} ${fileNames} ${tagInfo}`.toLowerCase();
                             
                             // 必须包含所有关键字
                             const match = keywords.every(kw => searchableText.includes(kw));
@@ -565,7 +797,13 @@
                         if (filterType.value === 'existing' && !exists) continue;
                         if (filterType.value === 'missing' && exists) continue;
 
-                        list.push({ num: i, data: data });
+                        // 4. 智能筛选
+                        if (smartFilterEnabled.value && data.length > 0) {
+                            const sortedData = [...data].sort(compareResources);
+                            list.push({ num: i, data: [sortedData[0]] });
+                        } else {
+                            list.push({ num: i, data: data });
+                        }
                     }
                     return list;
                 });
@@ -661,10 +899,65 @@
                     }
                 };
 
+                const copyToClipboard = (text) => {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        return navigator.clipboard.writeText(text);
+                    } else {
+                        return new Promise((resolve, reject) => {
+                            try {
+                                const textArea = document.createElement("textarea");
+                                textArea.value = text;
+                                
+                                // Ensure it's not visible but part of the DOM
+                                textArea.style.position = "fixed";
+                                textArea.style.left = "-9999px";
+                                textArea.style.top = "0";
+                                document.body.appendChild(textArea);
+                                
+                                textArea.focus();
+                                textArea.select();
+                                
+                                const successful = document.execCommand('copy');
+                                document.body.removeChild(textArea);
+                                
+                                if (successful) resolve();
+                                else reject(new Error("execCommand failed"));
+                            } catch (err) {
+                                reject(err);
+                            }
+                        });
+                    }
+                };
+
                 const copyMagnet = (link) => {
-                    navigator.clipboard.writeText(link).then(() => {
+                    copyToClipboard(link).then(() => {
                         ElMessage({ message: '磁力链接已复制', type: 'success', duration: 1500 });
+                    }).catch((err) => {
+                        console.error('Copy failed', err);
+                        ElMessage.error('复制失败，请手动复制');
                     });
+                };
+
+                const copyAllMagnets = () => {
+                     let links = [];
+                     filteredEpisodes.value.forEach(ep => {
+                         ep.data.forEach(res => {
+                             if (res.magnet_link) links.push(res.magnet_link);
+                         });
+                     });
+                     
+                     if (links.length === 0) {
+                         ElMessage.warning('当前列表没有可复制的磁力链接');
+                         return;
+                     }
+                     
+                     const text = links.join('\n');
+                     copyToClipboard(text).then(() => {
+                         ElMessage.success(`已复制 ${links.length} 条磁力链接`);
+                     }).catch((err) => {
+                         console.error('Copy all failed', err);
+                         ElMessage.error('复制失败，请手动复制');
+                     });
                 };
 
                 return {
@@ -681,6 +974,23 @@
                     Film: ElementPlusIconsVue.Film,
                     PriceTag: ElementPlusIconsVue.PriceTag,
                     RefreshRight: ElementPlusIconsVue.RefreshRight,
+                    Operation: ElementPlusIconsVue.Operation,
+                    CopyDocument: ElementPlusIconsVue.CopyDocument,
+                    Sort: ElementPlusIconsVue.Sort,
+                    ArrowUp: ElementPlusIconsVue.ArrowUp,
+                    ArrowDown: ElementPlusIconsVue.ArrowDown,
+                    smartFilterEnabled,
+                    showPriorityDrawer,
+                    openPriorityDrawer,
+                    priorityConfig,
+                    priorityLabels,
+                    movePriority,
+                    draggingState,
+                    onDragStart,
+                    onDragOver,
+                    onDrop,
+                    onDragEnd,
+                    copyAllMagnets,
                     magnets,
                     maxEpisode,
                     cronExpression,

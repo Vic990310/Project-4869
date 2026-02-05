@@ -44,6 +44,7 @@ def parse_title(title):
              if ep_match_2:
                  result['episode'] = ep_match_2.group(1)
 
+
     # 2. Resolution
     res_match = re.search(r'(1080[Pp]|720[Pp]|2160[Pp]|4[Kk])', title, re.IGNORECASE)
     if res_match:

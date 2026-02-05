@@ -109,6 +109,25 @@ async def scrape():
         except Exception as e:
             logger.error(f"Load All error: {e}")
 
+        try:
+            trigger_sel = "[data-toggle='modal'], [data-target]"
+            total = await page.locator(trigger_sel).count()
+            for i in range(total):
+                btn = page.locator(trigger_sel).nth(i)
+                try:
+                    attr = await btn.get_attribute("data-target")
+                    if not attr:
+                        href = await btn.get_attribute("href")
+                        attr = href if href and href.startswith("#") else None
+                    await btn.click()
+                    if attr:
+                        await page.wait_for_selector(f"{attr}", timeout=3000)
+                    await asyncio.sleep(0.1)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         # 3. Row Discovery & Iteration
         logger.info("Starting Row Discovery...")
         
@@ -351,19 +370,17 @@ async def scrape():
                 
                 if cursor.rowcount > 0:
                     count += 1
-                    # Print FIRST item detail as requested
-                    if count == 1:
-                        logger.info(f"SUCCESS! First Item Extracted:")
-                        logger.info(f"  Parent Title: {raw_parent_line}")
-                        logger.info(f"  Clean Title: {clean_ep_title}")
-                        logger.info(f"  Resource Context: {res_context}")
-                        logger.info(f"  Combined Raw Title: {full_raw_title}")
-                        logger.info(f"  Magnet: {magnet_link[:50]}...")
-                        logger.info(f"  Parsed Episode: {episode}")
-                        logger.info(f"  Source Type: {source_type}")
-                        # Log the HTML snapshot to see the structure
-                        html_snapshot = res.get('html_snapshot', 'No Snapshot')
-                        logger.info(f"  HTML Structure: {html_snapshot[:500]}...")
+                    # Print details for the first 5 items to show what's being processed/cleaned
+                    if count <= 5:
+                        logger.info(f"--- Item {count} Processed ---")
+                        logger.info(f"  Raw Parent Title: {raw_parent_line}")
+                        logger.info(f"  Cleaned Title:    {clean_ep_title}")
+                        removed_part = raw_parent_line.replace(clean_ep_title, "").strip()
+                        logger.info(f"  Removed Text:     [{removed_part}]")
+                        logger.info(f"  Magnet:           {magnet_link[:30]}...")
+                        logger.info(f"  Source Type:      {source_type}")
+                        logger.info(f"-----------------------------")
+
 
                     if count % 100 == 0:
                         conn.commit()
@@ -375,4 +392,8 @@ async def scrape():
         conn.close()
 
 if __name__ == "__main__":
-    asyncio.run(scrape())
+    try:
+        asyncio.run(scrape())
+    except Exception as e:
+        logger.exception("Fatal error in scraper process:")
+        sys.exit(1)

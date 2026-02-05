@@ -12,7 +12,7 @@ from apscheduler.triggers.cron import CronTrigger
 from pydantic import BaseModel
 
 # Import existing configs
-from config import DB_PATH, SBSUB_RSS_URL, setup_logger
+from config import DB_PATH, SBSUB_RSS_URL, setup_logger, CREATE_TABLE_SQL
 # Import monitoring logic
 from monitor_rss import monitor
 
@@ -20,6 +20,23 @@ from monitor_rss import monitor
 logger = setup_logger('web_server')
 
 app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    # Ensure data directory exists
+    if not os.path.exists(os.path.dirname(DB_PATH)):
+        os.makedirs(os.path.dirname(DB_PATH))
+    
+    # Initialize DB
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(CREATE_TABLE_SQL)
+        conn.commit()
+        conn.close()
+        logger.info("Database schema initialized.")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -198,7 +215,29 @@ async def trigger_full_scrape(background_tasks: BackgroundTasks):
         # Use subprocess to run the script in a separate process
         try:
             import sys
-            subprocess.run([sys.executable, "scraper_history.py"], check=False)
+            # Capture output to ensure errors are logged even if the script crashes early
+            result = subprocess.run(
+                [sys.executable, "scraper_history.py"], 
+                capture_output=True, 
+                text=True,
+                check=False
+            )
+            
+            # stdout is usually already logged by the scraper's logger to file, 
+            # but we can log it here for debug if needed, or just rely on the file.
+            # However, stderr often contains crash info that didn't make it to the log file.
+            if result.stdout:
+                # Avoid flooding logs if stdout is huge, but here it's useful
+                logger.info(f"Scraper process output: \n{result.stdout.strip()}")
+            
+            if result.returncode != 0:
+                logger.error(f"Scraper process failed (code {result.returncode})")
+                if result.stderr:
+                    logger.error(f"Scraper stderr: \n{result.stderr.strip()}")
+            elif result.stderr:
+                # Sometimes warnings go to stderr even on success
+                logger.warning(f"Scraper stderr: \n{result.stderr.strip()}")
+                
         except Exception as e:
             logger.error(f"Full scrape subprocess failed: {e}")
 

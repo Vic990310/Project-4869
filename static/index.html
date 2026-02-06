@@ -16,7 +16,7 @@
         tailwind.config = { darkMode: 'class' }
     </script>
 
-    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.min.js"></script>
 
     <style>
         /* --- CSS 变量定义主题 --- */
@@ -201,17 +201,17 @@
                     
                     <div class="rounded-lg border px-2 py-1 bg-white/60 dark:bg-gray-900/40" style="border-color: var(--glass-border);">
                         <el-input v-model="embyConfig.host" placeholder="http://ip:8096" size="default" class="no-border-input"> 
-                            <template #prefix><el-icon><Link /></el-icon></template> 
+                            <template #prefix><el-icon><component :is="'Link'"></component></el-icon></template> 
                         </el-input> 
                     </div>
                     <div class="rounded-lg border px-2 py-1 bg-white/60 dark:bg-gray-900/40" style="border-color: var(--glass-border);">
                         <el-input v-model="embyConfig.apiKey" placeholder="API Key" type="password" show-password size="default" class="no-border-input"> 
-                            <template #prefix><el-icon><Key /></el-icon></template> 
+                            <template #prefix><el-icon><key /></el-icon></template> 
                         </el-input> 
                     </div>
                     <div class="rounded-lg border px-2 py-1 bg-white/60 dark:bg-gray-900/40" style="border-color: var(--glass-border);">
                         <el-input v-model="embyConfig.tmdbId" placeholder="TMDB ID" size="default" class="no-border-input"> 
-                            <template #prefix><el-icon><PriceTag /></el-icon></template> 
+                            <template #prefix><el-icon><price-tag /></el-icon></template> 
                         </el-input> 
                     </div>
                     
@@ -274,7 +274,7 @@
                  style="border-color: var(--glass-border);"> 
                 <div class="flex justify-between text-xs text-gray-400 mb-2 px-1"> 
                     <span class="font-mono">SYSTEM LOGS</span> 
-                    <el-icon class="cursor-pointer hover:text-white transition-colors" @click="fetchLogs"><RefreshRight /></el-icon> 
+                    <el-icon class="cursor-pointer hover:text-white transition-colors" @click="fetchLogs"><refresh-right /></el-icon> 
                 </div> 
                 <div class="flex-1 overflow-auto font-mono text-xs text-green-400 whitespace-pre-wrap break-all leading-relaxed p-1 scrollbar-thin"> 
                     {{ logContent }} 
@@ -312,7 +312,7 @@
 
                 <div class="flex items-center gap-1 sm:gap-3 flex-shrink-0 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full border bg-gray-100/50 dark:bg-gray-700/30" style="border-color: var(--glass-border);">
                     <el-button @click="copyAllMagnets" round size="default" class="!px-2 sm:!px-4">
-                        <el-icon class="sm:mr-1"><CopyDocument /></el-icon> <span class="hidden sm:inline">复制所有磁链</span>
+                        <el-icon class="sm:mr-1"><copy-document /></el-icon> <span class="hidden sm:inline">复制所有磁链</span>
                     </el-button>
                     
                     <el-popover placement="bottom" width="320" trigger="click" @show="openPriorityPopover" :teleported="false" :show-arrow="false" popper-class="priority-popover">
@@ -387,8 +387,14 @@
                 <div class="max-w-6xl mx-auto space-y-4">
                     <template v-for="ep in paginatedEpisodes" :key="ep.num">
                         
-                        <div v-if="ep.data.length > 0" class="resource-card rounded-xl shadow-sm overflow-hidden mb-6" 
-                             :class="{'ring-2 ring-orange-400 bg-orange-50/50': isEmbyMode && (!lastSyncTime || embyMissingList.includes(ep.num))}">
+                        <div v-if="ep.data.length > 0" 
+                             :id="'ep-' + ep.num" 
+                             class="resource-card rounded-xl shadow-sm overflow-hidden mb-6 transition-all duration-200" 
+                             :class="{ 
+                                'ring-2 ring-orange-400 bg-orange-50/50': isEmbyMode && (!lastSyncTime || embyMissingList.includes(ep.num)), 
+                                'cursor-pointer hover:shadow-md hover:scale-[1.002] ring-1 ring-blue-200': searchQuery 
+                             }" 
+                             @click="handleCardClick(ep.num, $event)">
                             
                             <div class="resource-card-header px-4 py-3 flex items-center justify-between border-b" style="border-color: var(--card-border); background: var(--header-bg);">
                                 <div class="flex items-center gap-3 overflow-hidden min-w-0">
@@ -505,8 +511,6 @@
                     const savedConfig = localStorage.getItem('project4869_emby_config');
                     if (savedConfig) embyConfig.value = JSON.parse(savedConfig);
 
-                    // 设置 Element Plus 语言为中文
-                    app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
                     fetchData();
                     fetchLogs(); // 初始加载日志
                     setInterval(fetchLogs, 5000); // 每5秒自动刷新日志
@@ -551,6 +555,7 @@
 
                 // 加载保存的配置
                 onMounted(() => {
+                    // 1. 优先级配置
                     const savedPriority = localStorage.getItem('project4869_priority_config');
                     if (savedPriority) {
                         try {
@@ -558,11 +563,43 @@
                             priorityConfig.value = { ...defaultPriority, ...parsed };
                         } catch(e) { console.error(e); }
                     }
+
+                    // 2. 智能筛选开关
+                    const savedSmartFilter = localStorage.getItem('project4869_smart_filter');
+                    if (savedSmartFilter) {
+                        smartFilterEnabled.value = savedSmartFilter === 'true';
+                    }
+
+                    // 3. Emby 模式开关
+                    const savedEmbyMode = localStorage.getItem('project4869_emby_mode');
+                    if (savedEmbyMode) {
+                        isEmbyMode.value = savedEmbyMode === 'true';
+                    }
+
+                    // 4. 恢复 Emby 同步数据
+                    const savedEmbyData = localStorage.getItem('project4869_emby_data');
+                    if (savedEmbyData) {
+                        try {
+                            const data = JSON.parse(savedEmbyData);
+                            embyMissingList.value = data.missing || [];
+                            embyTotalCount.value = data.total || 0;
+                            lastSyncTime.value = data.time || "";
+                        } catch (e) { console.error(e); }
+                    }
                 });
 
+                // 持久化监听
                 watch(priorityConfig, (newVal) => {
                     localStorage.setItem('project4869_priority_config', JSON.stringify(newVal));
                 }, { deep: true });
+
+                watch(smartFilterEnabled, (newVal) => {
+                    localStorage.setItem('project4869_smart_filter', newVal);
+                });
+
+                watch(isEmbyMode, (newVal) => {
+                    localStorage.setItem('project4869_emby_mode', newVal);
+                });
 
                 const openPriorityPopover = async () => {
                     try {
@@ -705,6 +742,13 @@
                             embyMissingList.value = json.missing_episodes;
                             embyTotalCount.value = json.total_count || 0;
                             lastSyncTime.value = new Date().toLocaleTimeString();
+                            
+                            // 持久化 Emby 同步数据
+                            localStorage.setItem('project4869_emby_data', JSON.stringify({
+                                missing: embyMissingList.value,
+                                total: embyTotalCount.value,
+                                time: lastSyncTime.value
+                            }));
                             
                             if (json.missing_episodes.length > 0) {
                                 ElMessage.success(`同步成功，发现 ${json.missing_episodes.length} 集缺失`);
@@ -868,6 +912,15 @@
                 };
 
                 const updateCron = async (newVal) => {
+                    // --- 临时禁用逻辑 ---
+                    if (newVal === true) {
+                        ElMessage.error('别用，我还没测试');
+                        // 强制重置为 false
+                        rssEnabled.value = false;
+                        return;
+                    }
+                    // ------------------
+
                     if (newVal === true) {
                         if (!cronExpression.value || !cronExpression.value.trim()) {
                             ElMessage.warning('请先填写 Cron 表达式');
@@ -983,6 +1036,56 @@
                      });
                 };
 
+                // --- 新增：智能卡片点击处理 ---
+                const locateEpisode = (epNum) => {
+                    // 1. 清空搜索
+                    searchQuery.value = "";
+                    
+                    // 2. 等待 Vue 重新计算列表
+                    setTimeout(() => {
+                        // 3. 计算目标所在的页码
+                        const index = filteredEpisodes.value.findIndex(ep => ep.num === epNum);
+                        
+                        if (index !== -1) {
+                            const targetPage = Math.floor(index / pageSize.value) + 1;
+                            
+                            if (currentPage.value !== targetPage) {
+                                currentPage.value = targetPage;
+                            }
+                            
+                            // 4. 等待 DOM 更新后滚动并高亮
+                            setTimeout(() => {
+                                const el = document.getElementById('ep-' + epNum);
+                                if (el) {
+                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    // 高亮动画
+                                    el.classList.add('ring-4', 'ring-blue-400', 'bg-blue-50');
+                                    setTimeout(() => {
+                                        el.classList.remove('ring-4', 'ring-blue-400', 'bg-blue-50');
+                                    }, 2000);
+                                }
+                            }, 100);
+                        }
+                    }, 50);
+                };
+
+                const handleCardClick = (epNum, event) => {
+                    // 1. 如果不在搜索模式，点击卡片不做任何事
+                    if (!searchQuery.value) return;
+
+                    // 2. 智能防误触检测：
+                    // 如果点击的是按钮(复制)、标签、输入框，或者是正在选中文本，则不触发跳转
+                    if (event.target.closest('.el-button') || 
+                        event.target.closest('.el-tag') || 
+                        event.target.closest('input') || 
+                        window.getSelection().toString()) {
+                        return;
+                    }
+
+                    // 3. 执行定位
+                    locateEpisode(epNum);
+                };
+
                 return {
                     isDark,
                     isSidebarOpen,
@@ -1025,12 +1128,15 @@
                     currentPage,
                     pageSize,
                     scrollToTop,
-                    searchQuery 
+                    searchQuery,
+                    locateEpisode,
+                    handleCardClick
                 };
             }
         });
 
-        app.use(ElementPlus);
+        // 统一在这里注册，并启用中文
+        app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
         for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
             app.component(key, component)
         }

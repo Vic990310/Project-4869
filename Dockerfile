@@ -23,8 +23,8 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debia
 
 # 3. 安装 Python 库
 COPY requirements.txt .
-# 使用国内源加速
-RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 4. 全自动安装 Chromium 及其依赖
 # (因为换成了 bookworm 稳定版，这个官方脚本终于可以正常工作了)

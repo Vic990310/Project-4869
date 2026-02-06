@@ -176,7 +176,6 @@
     <div id="app" class="h-screen flex overflow-hidden">
         <div class="bg-wallpaper"></div>
         
-        <!-- Mobile Sidebar Backdrop -->
         <div v-if="isSidebarOpen" 
              class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden transition-opacity" 
              @click="isSidebarOpen = false">
@@ -302,7 +301,7 @@
                     
                     <el-input 
                         v-model="searchQuery" 
-                        placeholder="搜索标题 / 文件名..." 
+                        placeholder="搜索标题 / 文件名... (输入 #1 精准搜第1集)" 
                         class="w-full max-w-xs"
                         clearable
                         size="default"
@@ -582,15 +581,6 @@
                             const dbOptions = json[key]; // 数据库返回的最新选项列表
                             const currentList = newConfig[key] || [];
                             
-                            // 1. 过滤掉 currentList 中已经不存在于 dbOptions 的项 (除了 'Unknown')
-                            // 但是用户可能希望保留之前的配置即使暂时没有数据？
-                            // 策略：保留所有当前配置中的项，只要它们不是完全无效的。
-                            // 但为了响应“实时获取”，应该以 dbOptions 为准，加上 Unknown。
-                            
-                            // 更好的策略：
-                            // 1. 提取 currentList 中所有在 dbOptions + ['Unknown'] 中的项，保持顺序。
-                            // 2. 将 dbOptions 中未出现在 currentList 的项追加到后面。
-                            
                             const validSet = new Set([...dbOptions, 'Unknown']);
                             
                             // 步骤 1: 保留已有的且有效的
@@ -634,34 +624,26 @@
                 const onDragStart = (category, index, event) => {
                     draggingState.value = { category, index };
                     event.dataTransfer.effectAllowed = 'move';
-                    // Optional: set drag image or data if needed
                 };
 
                 const onDragOver = (category, index, event) => {
-                    // Only allow dropping if same category
                     if (draggingState.value.category === category) {
-                         // Default is usually 'copy', we want 'move' visual
                          event.dataTransfer.dropEffect = 'move';
                     }
                 };
 
                 const onDrop = (category, index, event) => {
                     const srcState = draggingState.value;
-                    
-                    // Validation: must be same category and valid indices
                     if (srcState.category !== category || srcState.index === null) return;
-                    if (srcState.index === index) return; // Dropped on self
+                    if (srcState.index === index) return;
 
                     const list = priorityConfig.value[category];
                     const srcIndex = srcState.index;
                     const destIndex = index;
 
-                    // Remove item from source
                     const [movedItem] = list.splice(srcIndex, 1);
-                    // Insert at destination
                     list.splice(destIndex, 0, movedItem);
                     
-                    // Reset state
                     onDragEnd();
                 };
 
@@ -702,7 +684,6 @@
                     }
                     
                     syncing.value = true;
-                    // 保存配置到浏览器
                     localStorage.setItem('project4869_emby_config', JSON.stringify(embyConfig.value));
                     
                     try {
@@ -776,7 +757,6 @@
                         
                         if (json.error) {
                             console.error("API Error:", json.error);
-                            // 如果是表不存在的错误，可能还没初始化，不弹窗打扰用户，只是保持空状态
                             if (!json.error.includes('no such table')) {
                                 ElMessage.error(json.error);
                             }
@@ -798,40 +778,52 @@
                     const list = [];
                     const start = maxEpisode.value > 0 ? maxEpisode.value : 1;
                     
-                    // 预处理搜索关键字
+                    // --- 搜索逻辑核心 ---
                     let keywords = [];
+                    let targetEp = null; // 存储精确集数
+
                     if (searchQuery.value) {
-                        keywords = searchQuery.value.toLowerCase().split(/\s+/).filter(k => k);
+                        const rawKeywords = searchQuery.value.toLowerCase().split(/\s+/).filter(k => k);
+                        
+                        // 1. 提取 #数字 格式的关键字 (例如 #1, #100)
+                        const epKw = rawKeywords.find(k => /^#\d+$/.test(k));
+                        if (epKw) {
+                            targetEp = parseInt(epKw.substring(1));
+                            // 剩下的作为普通关键字，继续模糊匹配其他条件（如 '1080P'）
+                            keywords = rawKeywords.filter(k => k !== epKw);
+                        } else {
+                            keywords = rawKeywords;
+                        }
                     }
 
                     for (let i = start; i >= 1; i--) {
                         const data = groupedData.value[i] || [];
                         
+                        // 0. 精确集数筛选 (优先级最高)
+                        // 如果指定了 #1，那么只有 i===1 才能通过，其他统统跳过
+                        if (targetEp !== null && i !== targetEp) continue;
+
                         // 1. Emby 模式筛选
                         if (isEmbyMode.value && lastSyncTime.value && !embyMissingList.value.includes(i)) continue;
                         
-                        // 2. 搜索关键字筛选
+                        // 2. 搜索关键字筛选 (模糊匹配)
                         if (keywords.length > 0) {
-                            // 构建可搜索文本：集数 + 纯标题 + 所有文件名 + 所有标签信息
-                            // 注意：cleanTitle 可能依赖 data[0]，如果 data 为空需要处理
                             const epTitle = data.length > 0 ? (data[0].episode_title || cleanTitle(data[0].raw_title, i)) : "";
                             const fileNames = data.map(d => d.raw_title).join(" ");
                             
-                            // 显式添加标签信息 (分辨率、字幕、来源、容器)
                             const tagInfo = data.map(d => {
                                 return [d.resolution, d.subtitle, d.source_type, d.container]
-                                    .filter(t => t && t !== 'Unknown') // 过滤掉无效值
+                                    .filter(t => t && t !== 'Unknown') 
                                     .join(" ");
                             }).join(" ");
 
                             const searchableText = `${i} ${epTitle} ${fileNames} ${tagInfo}`.toLowerCase();
                             
-                            // 必须包含所有关键字
                             const match = keywords.every(kw => searchableText.includes(kw));
                             if (!match) continue;
                         }
 
-                        // 3. 原有的筛选逻辑 (虽无 UI 触发，保留逻辑)
+                        // 3. 原有的筛选逻辑
                         const exists = data.length > 0;
                         if (filterType.value === 'existing' && !exists) continue;
                         if (filterType.value === 'missing' && exists) continue;
@@ -876,11 +868,10 @@
                 };
 
                 const updateCron = async (newVal) => {
-                    // 只在试图打开开关时进行校验
                     if (newVal === true) {
                         if (!cronExpression.value || !cronExpression.value.trim()) {
                             ElMessage.warning('请先填写 Cron 表达式');
-                            rssEnabled.value = false; // 回滚状态
+                            rssEnabled.value = false; 
                             return;
                         }
                     }
@@ -900,12 +891,10 @@
                             ElMessage.success(json.message);
                         } else {
                             ElMessage.error(json.error || '更新失败');
-                            // 如果是开启失败，则回滚开关
                             if (rssEnabled.value) rssEnabled.value = false;
                         }
                     } catch (e) {
                         ElMessage.error('请求失败');
-                        // 如果是开启失败，则回滚开关
                         if (rssEnabled.value) rssEnabled.value = false;
                     } finally {
                         loadingCron.value = false;
@@ -946,19 +935,14 @@
                             try {
                                 const textArea = document.createElement("textarea");
                                 textArea.value = text;
-                                
-                                // Ensure it's not visible but part of the DOM
                                 textArea.style.position = "fixed";
                                 textArea.style.left = "-9999px";
                                 textArea.style.top = "0";
                                 document.body.appendChild(textArea);
-                                
                                 textArea.focus();
                                 textArea.select();
-                                
                                 const successful = document.execCommand('copy');
                                 document.body.removeChild(textArea);
-                                
                                 if (successful) resolve();
                                 else reject(new Error("execCommand failed"));
                             } catch (err) {
@@ -1041,7 +1025,7 @@
                     currentPage,
                     pageSize,
                     scrollToTop,
-                    searchQuery // 导出 searchQuery
+                    searchQuery 
                 };
             }
         });

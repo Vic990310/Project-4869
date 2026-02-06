@@ -1,5 +1,6 @@
-# 1. 基础镜像
-FROM python:3.10-slim
+# 1. 基础镜像：锁定 Debian 12 (Bookworm) 稳定版
+# 这样 Playwright 的自动脚本就能识别系统并正确安装依赖
+FROM python:3.10-slim-bookworm
 
 # 设置环境变量
 ENV DEBIAN_FRONTEND=noninteractive
@@ -7,50 +8,31 @@ ENV TZ=Asia/Shanghai
 
 WORKDIR /app
 
-# 2. 更新并安装系统依赖 (使用官方源)
-# 修复：使用新版字体包名 (fonts-unifont, fonts-ubuntu)
-# 保留：手动安装 Chromium 依赖库，避免依赖脚本报错
-RUN apt-get update && \
+# 2. 安装基础工具
+# 安装 sudo 是必须的，因为 playwright install-deps 脚本需要它
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
     git \
     tzdata \
     sudo \
-    # --- 字体依赖 (Debian 12 新名称) ---
-    fonts-unifont \
-    fonts-ubuntu \
-    fonts-noto-color-emoji \
-    fonts-wqy-zenhei \
-    # --- Chromium 系统依赖 ---
-    libglib2.0-0 \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 && \
-    # 设置时区
-    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
-    # 清理缓存
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    # 安装中文字体 (防止截图/PDF乱码)
+    fonts-wqy-zenhei && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# 3. 安装 Python 库 (使用官方 PyPI 源)
+# 3. 安装 Python 库
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# 使用国内源加速
+RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
-# 4. 安装 Chromium 浏览器 (使用官方 CDN)
-RUN playwright install chromium && \
+# 4. 全自动安装 Chromium 及其依赖
+# (因为换成了 bookworm 稳定版，这个官方脚本终于可以正常工作了)
+RUN playwright install-deps chromium && \
+    playwright install chromium && \
+    # 清理垃圾
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
     rm -rf /root/.cache/ms-playwright/firefox* && \
     rm -rf /root/.cache/ms-playwright/webkit*
 

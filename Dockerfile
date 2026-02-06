@@ -1,40 +1,40 @@
-# 1. 基础镜像：锁定 Debian 12 (Bookworm) 稳定版
-# 这样 Playwright 的自动脚本就能识别系统并正确安装依赖
+# 1. 基础镜像
 FROM python:3.10-slim-bookworm
 
 # 设置环境变量
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
+# 【核心修复】显式指定 Playwright 浏览器路径，确保安装和运行路径一致
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /app
 
 # 2. 安装基础工具
-# 安装 sudo 是必须的，因为 playwright install-deps 脚本需要它
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources && \
-    apt-get update && \
+# 【修改】去掉了阿里云加速源 (sed命令)，直接使用 Debian 官方源
+RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
     git \
     tzdata \
     sudo \
-    # 安装中文字体 (防止截图/PDF乱码)
     fonts-wqy-zenhei && \
     ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # 3. 安装 Python 库
 COPY requirements.txt .
-
+# 【修改】去掉了 pip 的国内镜像源参数 -i ...
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 4. 全自动安装 Chromium 及其依赖
-# (因为换成了 bookworm 稳定版，这个官方脚本终于可以正常工作了)
+# 4. 全自动安装 Chromium
+# 注意：因为设置了 ENV PLAYWRIGHT_BROWSERS_PATH，这里会自动安装到 /ms-playwright
 RUN playwright install-deps chromium && \
     playwright install chromium && \
     # 清理垃圾
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    rm -rf /root/.cache/ms-playwright/firefox* && \
-    rm -rf /root/.cache/ms-playwright/webkit*
+    # 【修改】清理路径改为 /ms-playwright 下的非 Chromium 浏览器
+    rm -rf /ms-playwright/firefox* && \
+    rm -rf /ms-playwright/webkit*
 
 # 5. 复制业务代码
 COPY . .
